@@ -124,6 +124,11 @@ def main():
             elif call.data == 'plans_tomorrow':
                 # bot send message with request to add data about plans at tomorrow
                 db_actions.set_user_system_key(user_id, "index", None)
+                bot.send_message(user_id, "<b>Давайте составим план на завтра!</b>\n\n" \
+                "Напишите, о чем мне напомнить завтра?\n" \
+                "(в формате одного сообщения)", parse_mode='HTML')
+                db_actions.set_user_system_key(user_id, "index", 18)
+
             elif call.data == 'answer_on_questions':
                 # bot send questions, user need answer
                 db_actions.set_user_system_key(user_id, "index", None)
@@ -153,11 +158,13 @@ def main():
             elif call.data == "add_reminder":
                 # user add remind
                 db_actions.set_user_system_key(user_id, "index", None)
+                bot.send_message(user_id, "<b>Давайте составим план на завтра!</b>\n\n" \
+                "Напишите, о чем мне напомнить завтра?\n" \
+                "(в формате одного сообщения)", parse_mode='HTML')
+                db_actions.set_user_system_key(user_id, "index", 18)
+
             elif call.data == "delete_reminder":
                 # user delete remind
-                db_actions.set_user_system_key(user_id, "index", None)
-            elif call.data == "reminder_settings":
-                # ???
                 db_actions.set_user_system_key(user_id, "index", None)
 
             ######## SETTINGS BUTTONS ########
@@ -251,14 +258,25 @@ def main():
                     else:
                         bot.send_message(user_id, "❌ Ошибка!\n\nНет данных о пороге давления или таблетках!", reply_markup=buttons.end_question_two_buttons())
                 elif code == 16:
+                    # 16 and 17 codes for user_settings
                     db_actions.update_user_pressure_setting(user_id, user_input)
                     bot.send_message(user_id, "<b>✅ Данные обновлены!</b>", parse_mode='HTML')
                 elif code == 17:
                     db_actions.update_user_pills_setting(user_id, user_input)
                     bot.send_message(user_id, "<b>✅ Данные обновлены!</b>", parse_mode='HTML')
                 
-
-    
+                elif code == 18:
+                    # 18 and 19 codes for user reminders at tommorow
+                    db_actions.set_user_system_key(user_id, "remind", user_input)
+                    bot.send_message(user_id, "<b>⏰ В какое время вам напомнить об этом?</b>\n" \
+                    "(в формате: число-месяц/чч:мм (12-10/13:00))", parse_mode='HTML')
+                    # TODO: логика напониманий продумать
+                    db_actions.set_user_system_key(user_id, "index", 19)
+                elif code == 19:
+                    remind = db_actions.get_user_system_key(user_id, "remind")
+                    time = user_input
+                    # HERE LOGIC FOR NOTE AND REMIND 
+                    db_actions.add_user_remind(user_id, remind, time)
     
     bot.polling(none_stop=True)
 

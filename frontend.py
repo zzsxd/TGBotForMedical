@@ -56,11 +56,10 @@ class Bot_inline_btns:
     def reminders_buttons(self):
         one = types.InlineKeyboardButton("За сегодня 📅", callback_data="reminders_today")
         two = types.InlineKeyboardButton("Все напоминания 📄", callback_data="all_reminders")
-        three = types.InlineKeyboardButton("Настроить ⚙️", callback_data="reminder_settings")
         four = types.InlineKeyboardButton("Добавить ➕", callback_data="add_reminder")
         five = types.InlineKeyboardButton("Удалить 🗑", callback_data="delete_reminder")
 
-        self.__markup.add(one, two, four, five, three)
+        self.__markup.add(one, two, four, five)
         return self.__markup
     
     def settings_buttons(self):
