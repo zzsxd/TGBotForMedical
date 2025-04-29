@@ -18,7 +18,7 @@ class DB:
             self.__cursor.execute('''
             CREATE TABLE IF NOT EXISTS users(
                 row_id INTEGER primary key autoincrement not null,
-                user_id INTEGER,
+                user_id INTEGER NOT NULL,
                 first_name TEXT,
                 last_name TEXT,
                 nick_name TEXT,
@@ -30,7 +30,7 @@ class DB:
             self.__cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_questions(
                 row_id INTEGER primary key autoincrement not null,
-                user_id INTEGER,
+                user_id INTEGER NOT NULL,
                 question_id INTEGER,
                 question_status BOOL,
                 question TEXT,
@@ -41,8 +41,8 @@ class DB:
             ''')
             self.__cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_datas(
-                row_id INTEGER primary key autoincrement not null,
-                user_id INTEGER,
+                row_id INTEGER primary key autoincrement NOT NULL,
+                user_id INTEGER NOT NULL,
                 pressure TEXT,
                 weight INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -52,17 +52,18 @@ class DB:
             self.__cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_reminders(
                 row_id INTEGER primary key autoincrement not null,
-                user_id INTEGER,
+                user_id INTEGER NOT NULL,
                 reminder TEXT,
                 at_time INTEGER,
+                is_active BOOL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id)
+                UNIQUE(row_id)
               )
             ''')
             self.__cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_settings(
                 row_id INTEGER primary key autoincrement not null,
-                user_id INTEGER,
+                user_id INTEGER NOT NULL,
                 pressure TEXT,
                 pills TEXT,
                 UNIQUE(user_id)

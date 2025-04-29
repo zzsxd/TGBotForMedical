@@ -1,5 +1,5 @@
 import json
-
+import time
 
 class DbAct:
     def __init__(self, db, config):
@@ -109,4 +109,22 @@ class DbAct:
     def add_user_remind(self, user_id: int, remind: str, time: str):
         if not self.user_is_existed(user_id):
             return None
-        self.__db.db_write('INSERT INTO user_reminders (user_id, reminder, time) VALUES (?, ?, ?)', (user_id, remind, time))
+        self.__db.db_write('INSERT INTO user_reminders (user_id, reminder, at_time, is_active) VALUES (?, ?, ?, True)', (user_id, remind, int(time)))
+
+    def get_user_remind(self, current_time):
+        if current_time is None:
+            current_time = int(time.time())
+        res = self.__db.db_read('SELECT row_id, user_id, reminder FROM user_reminders WHERE at_time <= ? AND is_active = True', (current_time,))
+        return [{'id': row[0], 'user_id': row[1], 'reminder': row[2]} 
+                for row in res]
+
+    def mark_reminder_as_completed(self, reminder_id):
+        self.__db.db_read('UPDATE user_reminders SET is_active = False WHERE row_id = ?', (reminder_id))\
+        
+    def mark_reminder_as_unactive(self, user_id: int, question_id: int):
+        self.__db.db_write('UPDATE users SET is_active = False WHERE user_id = ? and row_id = ?', (user_id, question_id,))
+
+    def get_user__remind_by_userid(self, user_id: int):
+        if not self.user_is_existed(user_id):
+            return None
+        return self.__db.db_read('SELECT row_id, reminder, at_time FROM user_reminders WHERE user_id = ?', (user_id,))

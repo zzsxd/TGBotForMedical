@@ -1,7 +1,9 @@
+import time
 import telebot
 import os
 import re
 import json
+import threading
 import platform
 from datetime import datetime
 from threading import Lock
@@ -11,6 +13,7 @@ from backend import DbAct
 from db import DB
 
 config_name = 'secrets.json'
+reminders = {}
 
 def main():
     @bot.message_handler(commands=['start', 'admin'])
@@ -63,7 +66,7 @@ def main():
 
             elif call.data == 'end_questions':
                 db_actions.set_user_system_key(user_id, "index", None)
-                # add to db datas about questions
+                # ad to db datas about questions
                 questions = db_actions.get_user_question(user_id)
                 count = len(questions) if questions else 0
                 bot.send_message(user_id, f"❗️ Вы добавили {count} вопроса(ов)", reply_markup=buttons.end_question_two_buttons())
@@ -155,8 +158,10 @@ def main():
             elif call.data == "all_reminders":
                 # bot send all reminders
                 db_actions.set_user_system_key(user_id, "index", None)
+                reminds = db_actions.get_user__remind_by_userid(user_id)[0]
             elif call.data == "add_reminder":
                 # user add remind
+
                 db_actions.set_user_system_key(user_id, "index", None)
                 bot.send_message(user_id, "<b>Давайте составим план на завтра!</b>\n\n" \
                 "Напишите, о чем мне напомнить завтра?\n" \
@@ -166,11 +171,19 @@ def main():
             elif call.data == "delete_reminder":
                 # user delete remind
                 db_actions.set_user_system_key(user_id, "index", None)
+                reminds = db_actions.get_user__remind_by_userid(user_id)[0]
+                print(reminds)
 
             ######## SETTINGS BUTTONS ########
             elif call.data == "two_add_questions":
                 db_actions.set_user_system_key(user_id, "index", None)
-                # user add questions
+                questions = db_actions.get_user_question(user_id)
+                count = len(questions) if questions else 0
+                if count >= 10:
+                    bot.send_message(user_id, "<b>❌У вас добавлено максимальное количество вопросов!</b>", parse_mode='HTML')
+                else:
+                    bot.send_message(user_id, "📌 Задайте вопрос")
+                    db_actions.set_user_system_key(user_id, "index", 0)
             elif call.data == "delete_questions":
                 db_actions.set_user_system_key(user_id, "index", None)
                 questions = db_actions.get_user_question(user_id)
@@ -217,10 +230,15 @@ def main():
             if db_actions.user_is_admin(user_id):
                 # 0-10 codes for user questions
                 if code != 11 and code in range(1, 11):
-                    db_actions.write_user_question(user_id, code, user_input)
-                    code += 1
-                    db_actions.set_user_system_key(user_id, "index", code)
-                    bot.send_message(user_id, f"Задайте вопрос №{code}", reply_markup=buttons.end_question_buttons())
+                    questions = db_actions.get_user_question(user_id)
+                    count = len(questions) if questions else 0
+                    if count >=10:
+                        bot.send_message(user_id, "<b>❌ У вас добавлено максимальное количество вопросов!</b>", parse_mode='HTML')
+                    else:
+                        db_actions.write_user_question(user_id, code, user_input)
+                        code += 1
+                        db_actions.set_user_system_key(user_id, "index", code)
+                        bot.send_message(user_id, f"Задайте вопрос №{code}", reply_markup=buttons.end_question_buttons())
                 elif code == 11:
                     # code for delete question
                     # user_input = question_id
@@ -269,15 +287,37 @@ def main():
                     # 18 and 19 codes for user reminders at tommorow
                     db_actions.set_user_system_key(user_id, "remind", user_input)
                     bot.send_message(user_id, "<b>⏰ В какое время вам напомнить об этом?</b>\n" \
-                    "(в формате: число-месяц/чч:мм (12-10/13:00))", parse_mode='HTML')
-                    # TODO: логика напониманий продумать
+                    "Пример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
                     db_actions.set_user_system_key(user_id, "index", 19)
                 elif code == 19:
                     remind = db_actions.get_user_system_key(user_id, "remind")
-                    time = user_input
-                    # HERE LOGIC FOR NOTE AND REMIND 
-                    db_actions.add_user_remind(user_id, remind, time)
-    
+                    try:
+                        time_dt = datetime.strptime(user_input, '%d.%m.%Y %H:%M')
+                        timestamp = int(time_dt.timestamp())
+                        if time_dt < datetime.now():
+                            bot.send_message(user_id, "❌ Ошибка!\n" \
+                            "Введенная дата в прошлом!\n\n" \
+                            "Введите дату еще раз, пример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
+                            db_actions.set_user_system_key(user_id, "index", 19)
+                    except ValueError:
+                        bot.send_message(user_id, "❌ Неверный формат!\nПример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
+                        db_actions.set_user_system_key(user_id, "index", 19)
+                    db_actions.add_user_remind(user_id, remind, timestamp)
+                    bot.send_message(user_id, "✅ Напоминание установлено!")
+
+    def check_reminders():
+        while True:
+            current_time = int(time.time())
+            reminders = db_actions.get_user_remind(current_time)
+            for reminder in reminders:
+                try:
+                    bot.send_message(reminder['user_id'], f"🔔 Напоминание!\n\n<b>{reminder['reminder']}</b>", parse_mode='HTML')
+                    db_actions.mark_reminder_as_completed(reminder['user_id'], reminder['id'])
+                except Exception as e:
+                    print(f"Ошибка! - {e}")
+            time.sleep(60)
+
+    threading.Thread(target=check_reminders, daemon=True).start()
     bot.polling(none_stop=True)
 
 
