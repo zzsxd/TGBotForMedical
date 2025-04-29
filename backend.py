@@ -1,11 +1,18 @@
 import json
 import time
+import pandas as pd
+import csv
+from openpyxl import load_workbook
 
 class DbAct:
-    def __init__(self, db, config):
+    def __init__(self, db, config, path_xlsx):
         super(DbAct, self).__init__()
         self.__db = db
         self.__config = config
+        self.__fields_pressure = ['Давление', 'Запись']
+        self.__fields_weight = ['Вес', 'Запись']
+        self.__fields_questions = ['Вопрос', 'Ответ']
+        self.__dump_path_xlsx = path_xlsx
 
     def add_user(self, user_id, first_name, last_name, nick_name):
         if not self.user_is_existed(user_id):
@@ -18,7 +25,9 @@ class DbAct:
                 'VALUES (?, ?, ?, ?, ?, ?)',
                 (user_id, first_name, last_name, nick_name, json.dumps({"index": None,
                                                                         "pressure": None,
-                                                                        "remind": None}), is_admin))
+                                                                        "remind": None,
+                                                                        "pending_questions": None,
+                                                                        "current_question_index": None}), is_admin))
             
 
     ##### СТАНДАРТНЫЕ КОМАНДЫ #####
@@ -76,6 +85,17 @@ class DbAct:
             return None
         self.__db.db_write('UPDATE user_questions SET question_status = ? WHERE question_id = ? and user_id = ?', (False, question_id, user_id))
 
+    def add_user_answer(self, user_id, question_id, answer):
+        self.__db.db_write('UPDATE user_questions SET answer = ?, question_status = 0 WHERE row_id = ? AND user_id = ?', (answer, question_id, user_id))
+
+    def get_question_by_id(self, question_id):
+        result = self.__db.db_read(
+            'SELECT row_id, question FROM user_questions '
+            'WHERE row_id = ?',
+            (question_id,)
+        )
+        return result[0] if result else None
+
     def add_user_weight(self, user_id: int, weight: int):
         if not self.user_is_existed(user_id):
             return None
@@ -115,16 +135,62 @@ class DbAct:
         if current_time is None:
             current_time = int(time.time())
         res = self.__db.db_read('SELECT row_id, user_id, reminder FROM user_reminders WHERE at_time <= ? AND is_active = True', (current_time,))
-        return [{'id': row[0], 'user_id': row[1], 'reminder': row[2]} 
-                for row in res]
+        return [{'id': row[0], 'user_id': row[1], 'reminder': row[2]} for row in res]
+    
+    def get_today_reminders(self, user_id, start_of_day, end_of_day):
+        return self.__db.db_read(
+            'SELECT row_id, reminder, at_time FROM user_reminders '
+            'WHERE user_id = ? AND at_time BETWEEN ? AND ? AND is_active = 1 '
+            'ORDER BY at_time',
+            (user_id, start_of_day, end_of_day)
+        )
 
-    def mark_reminder_as_completed(self, reminder_id):
-        self.__db.db_read('UPDATE user_reminders SET is_active = False WHERE row_id = ?', (reminder_id))\
+    def mark_reminder_as_completed(self, reminder_id: int):
+        self.__db.db_write('UPDATE user_reminders SET is_active = False WHERE row_id = ?', (reminder_id,))
         
     def mark_reminder_as_unactive(self, user_id: int, question_id: int):
-        self.__db.db_write('UPDATE users SET is_active = False WHERE user_id = ? and row_id = ?', (user_id, question_id,))
+        self.__db.db_write('UPDATE user_reminders SET is_active = False WHERE user_id = ? and row_id = ?', (user_id, question_id,))
 
-    def get_user__remind_by_userid(self, user_id: int):
+    def get_user_remind_by_userid(self, user_id: int):
         if not self.user_is_existed(user_id):
             return None
-        return self.__db.db_read('SELECT row_id, reminder, at_time FROM user_reminders WHERE user_id = ?', (user_id,))
+        return self.__db.db_read('SELECT row_id, reminder, at_time FROM user_reminders WHERE user_id = ? and is_active = True', (user_id,))
+    
+    def get_pressure_report(self, user_id: int):
+        try:
+            data = {'Давление': [], 'Запись': []}
+            pressures_data = self.__db.db_read('SELECT pressure, created_at FROM user_datas WHERE user_id = ? AND pressure IS NOT NULL', (user_id,))
+            if len(pressures_data) > 0:
+                for pressure in pressures_data:
+                    for info in range(len(list(pressure))):
+                        data[self.__fields_pressure[info]].append(pressure[info])
+                df = pd.DataFrame(data)
+                df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='Давление', index=False)
+        except Exception as e:
+            return None
+                
+    def get_weight_report(self, user_id: int):
+        try:  
+            data = {'Вес': [], 'Запись': []}
+            weight_data = self.__db.db_read('SELECT weight, created_at FROM user_datas WHERE user_id = ? AND weight IS NOT NULL', (user_id,))
+            if len(weight_data) > 0:
+                for weight in weight_data:
+                    for info in range(len(list(weight))):
+                        data[self.__fields_weight[info]].append(weight[info])
+                df = pd.DataFrame(data)
+                df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='Вес', index=False)
+        except Exception as e:  
+            return None
+
+    def get_question_answer_report(self, user_id: int):
+        try:
+            data = {'Вопрос': [], 'Ответ': []}
+            question_answer_data = self.__db.db_read('SELECT question, answer FROM user_questions WHERE user_id = ?', (user_id,))
+            if len(question_answer_data) > 0:
+                for question_answer in question_answer_data:
+                    for info in range(len(list(question_answer))):
+                        data[self.__fields_questions[info]].append(question_answer[info])
+                df = pd.DataFrame(data)
+                df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='Вопросы и ответы', index=False)
+        except Exception as e:
+            return None
