@@ -12,6 +12,7 @@ class DbAct:
         self.__fields_pressure = ['Давление', 'Запись']
         self.__fields_weight = ['Вес', 'Запись']
         self.__fields_questions = ['Вопрос', 'Ответ']
+        self.__fields_user = ['Имя', 'Фамилия', 'Никнейм']
         self.__dump_path_xlsx = path_xlsx
 
     def add_user(self, user_id, first_name, last_name, nick_name):
@@ -192,5 +193,18 @@ class DbAct:
                         data[self.__fields_questions[info]].append(question_answer[info])
                 df = pd.DataFrame(data)
                 df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='Вопросы и ответы', index=False)
+        except Exception as e:
+            return None
+        
+    def db_export_xlsx(self):
+        try:
+            d = {'Имя': [], 'Фамилия': [], 'Никнейм': []}
+            users = self.__db.db_read('SELECT first_name, last_name, nick_name FROM users', ())
+            if len(users) > 0:
+                for user in users:
+                    for info in range(len(list(user))):
+                        d[self.__fields_user[info]].append(user[info])
+                df = pd.DataFrame(d)
+                df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='Пользователи', index=False)
         except Exception as e:
             return None

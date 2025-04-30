@@ -35,6 +35,9 @@ def main():
                 bot.send_message(user_id, f'<b>👋 Привет, {message.from_user.first_name}! Рад видеть тебя!</b>\n\n'
                 '🤓 Выбирай нужный пункт снизу и давай приступим к работе!\n\n',
                 parse_mode='HTML', reply_markup=buttons.start_register_buttons())
+        elif command == 'admin':
+            bot.send_message(user_id, "<b>Добро пожаловать в Админ-Панель!</b>"
+                             "\n\nВыберите пункт ниже!", reply_markup=buttons.admin_buttons(), parse_mode='HTML')
             
 
     @bot.callback_query_handler(func=lambda call: True)
@@ -42,6 +45,11 @@ def main():
         user_id = call.message.chat.id
         buttons = Bot_inline_btns()
         if db_actions.user_is_existed(user_id):
+            if db_actions.user_is_admin(user_id):
+                if call.data == 'export_users':
+                    db_actions.db_export_xlsx()
+                    bot.send_document(user_id, open(config.get_config()['xlsx_path'], 'rb'))
+                    os.remove(config.get_config()['xlsx_path'])
 
             ######## USER ########
             ######## USER NO REG START ########
