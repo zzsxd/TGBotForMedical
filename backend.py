@@ -96,6 +96,9 @@ class DbAct:
             (question_id,)
         )
         return result[0] if result else None
+    
+    def question_is_exist(self, user_id: int, question_id: int):
+        return self.__db.db_read('SELECT question FROM user_questions WHERE user_id = ? AND question_id = ? AND question_status = ?', (user_id, question_id, True))
 
     def add_user_weight(self, user_id: int, weight: int):
         if not self.user_is_existed(user_id):
@@ -150,12 +153,15 @@ class DbAct:
         self.__db.db_write('UPDATE user_reminders SET is_active = False WHERE row_id = ?', (reminder_id,))
         
     def mark_reminder_as_unactive(self, user_id: int, question_id: int):
-        self.__db.db_write('UPDATE user_reminders SET is_active = False WHERE user_id = ? and row_id = ?', (user_id, question_id,))
+        self.__db.db_write('UPDATE user_reminders SET is_active = False WHERE user_id = ? AND row_id = ?', (user_id, question_id,))
 
     def get_user_remind_by_userid(self, user_id: int):
         if not self.user_is_existed(user_id):
             return None
-        return self.__db.db_read('SELECT row_id, reminder, at_time FROM user_reminders WHERE user_id = ? and is_active = True', (user_id,))
+        return self.__db.db_read('SELECT row_id, reminder, at_time FROM user_reminders WHERE user_id = ? AND is_active = True', (user_id,))
+    
+    def reminder_is_exist(self, user_id: int, remind_id: int):
+        return self.__db.db_read('SELECT row_id, reminder FROM user_reminders WHERE user_id = ? AND is_active = True AND row_id = ?', (user_id, remind_id,))
     
     def get_pressure_report(self, user_id: int):
         try:

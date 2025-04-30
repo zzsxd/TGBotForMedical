@@ -21,6 +21,7 @@ def main():
         user_id = message.from_user.id
         buttons = Bot_inline_btns()
         if command == 'start':
+            db_actions.set_user_system_key(user_id, "index", None)
             if db_actions.user_is_existed(user_id) == False:
                 db_actions.add_user(user_id, message.from_user.first_name, message.from_user.last_name,
                             f'@{message.from_user.username}')
@@ -307,12 +308,16 @@ def main():
                     '📌 Нажмите на кнопку ниже, чтобы добавить их', reply_markup=buttons.add_question_btns())
                     return
                 questions_list = []
-                for idx, (q_id, q_text) in enumerate(questions, start=1):
-                    questions_list.append(f"{idx}. {q_text} [ID. {q_id}]")
+                for idx, (q_id, q_text, *_) in enumerate(questions, start=1):  # *_ для остальных полей
+                    questions_list.append(f"{idx}. {q_text} [ID: {q_id}]")
                 questions_text = "\n".join(questions_list)
                 bot.send_message(
                     user_id,
-                    f"Введите ID вопроса для удаления:\n\n{questions_text}")
+                    "📋 Список ваших вопросов:\n\n" +
+                    "\n".join(questions_list) +
+                    "\n\nВведите <b>ID вопроса</b> для удаления:",
+                    parse_mode='HTML'
+                )
                 db_actions.set_user_system_key(user_id, "index", 11)
             elif call.data == "pressure_settings":
                 # pressure settings
@@ -334,13 +339,13 @@ def main():
                 db_actions.set_user_system_key(user_id, "index", 16)
             elif call.data == 'set_pills':
                 db_actions.set_user_system_key(user_id, "index", None)
-                bot.send_message(user_id, '<b>📌 Укажите таблетки, которые следует принимать при высоком давлении!</b>', parse_mode='HTML')
+                bot.send_message(user_id, '<b>📌 Укажите таблетки, которые следует принимать при высоком давлении!</b>\n\n', parse_mode='HTML')
                 db_actions.set_user_system_key(user_id, "index", 17)
 
 
 
 
-    @bot.message_handler(content_types=['text', 'photo'])
+    @bot.message_handler(content_types=['text'])
     def text_message(message):
         user_input = message.text
         user_id = message.chat.id
@@ -349,19 +354,43 @@ def main():
         if db_actions.user_is_existed(user_id):
             # 0-10 codes for user questions
             if code != 11 and code in range(1, 11):
-                questions = db_actions.get_user_question(user_id)
-                count = len(questions) if questions else 0
-                if count >= 10:
-                    bot.send_message(user_id, "<b>❌ У вас добавлено максимальное количество вопросов!</b>", parse_mode='HTML')
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
                 else:
-                    db_actions.write_user_question(user_id, code, user_input)
-                    code += 1
-                    db_actions.set_user_system_key(user_id, "index", code)
-                    bot.send_message(user_id, f"Задайте вопрос №{code}", reply_markup=buttons.end_question_buttons())
+                    questions = db_actions.get_user_question(user_id)
+                    count = len(questions) if questions else 0
+                    if count >= 10:
+                        bot.send_message(user_id, "<b>❌ У вас добавлено максимальное количество вопросов!</b>", parse_mode='HTML')
+                        db_actions.set_user_system_key(user_id, "index", None)
+                    else:
+                        db_actions.write_user_question(user_id, code, user_input)
+                        code += 1
+                        db_actions.set_user_system_key(user_id, "index", code)
+                        bot.send_message(user_id, f"Задайте вопрос №{code}", reply_markup=buttons.end_question_buttons())
             elif code == 11:
                 # code for delete question
-                db_actions.delete_user_question(user_input, user_id)
-                bot.send_message(user_id, '✅ Вопрос удален!')
+                try:
+                    if user_input.strip() == "0":
+                        bot.send_message(user_id, "✅ Удаление отменено")
+                        db_actions.set_user_system_key(user_id, "index", None)
+                    question_id = int(user_input.strip())
+                    if not question_id:
+                        bot.send_message(user_id, "❌ Ошибка! Введите ID вопроса!")
+                        return
+                    else:
+                        check_question = db_actions.question_is_exist(user_id, question_id)
+                        if not check_question:
+                            bot.send_message(user_id, "❌ Ошибка! Вопрос не найден!")
+                            return
+                        else:
+                            db_actions.delete_user_question(question_id, user_id)
+                            bot.send_message(user_id, '✅ Вопрос удален!')
+                            db_actions.set_user_system_key(user_id, "index", None)
+
+                except:
+                    bot.send_message(user_id, "❌ Ошибка! Введите ID вопроса!")
             elif code == 12:
                 # code for add data about user today weight
                 if len(user_input) > 3:
@@ -390,25 +419,33 @@ def main():
                 except:
                     bot.send_message(user_id, "❌ Ошибка!")
             elif code == 14:
-                pressure = db_actions.get_user_system_key(user_id, "pressure")
-                db_actions.add_user_settings(user_id, pressure, user_input)
-                bot.send_message(user_id, "<b>✅ Данные о таблетках записаны!</b>", parse_mode='HTML')
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    pressure = db_actions.get_user_system_key(user_id, "pressure")
+                    db_actions.add_user_settings(user_id, pressure, user_input)
+                    bot.send_message(user_id, "<b>✅ Данные о таблетках записаны!</b>", parse_mode='HTML')
             elif code == 15:
                 # code for user input pressure today
                 try:
                     now_systolic, now_diastolic = map(int, user_input.split('/'))
                     if now_systolic and now_diastolic:
-                        db_actions.add_pressure_user(user_id, user_input)
-                        bot.send_message(user_id, "<b>✅ Данные успешно записаны</b>\n\n"
-                        f"Ваше давление: {user_input}", parse_mode='HTML')
-                        if not db_actions.get_user_pressure_setting(user_id):
-                            bot.send_message(user_id, "❌ Нет данных о давлении или таблетках!", reply_markup=buttons.pressure_settings())
-                            return  
-                        pressure_settings = db_actions.get_user_pressure_setting(user_id)[0][0]
-                        pills_settings = db_actions.get_user_pressure_setting(user_id)[0][1]
+                        if now_systolic > 180 or now_diastolic > 140 or now_systolic < 50 or now_diastolic < 50:
+                            bot.send_message(user_id, '❌ Неверные данные!')
+                            return
+                        else:
+                            db_actions.add_pressure_user(user_id, user_input)
+                            bot.send_message(user_id, "<b>✅ Данные успешно записаны</b>\n\n"
+                            f"Ваше давление: {user_input}", parse_mode='HTML')
+                            if not db_actions.get_user_pressure_setting(user_id):
+                                bot.send_message(user_id, "❌ Нет данных о давлении или таблетках!", reply_markup=buttons.pressure_settings())
+                                return  
+                            pressure_settings = db_actions.get_user_pressure_setting(user_id)[0][0]
+                            pills_settings = db_actions.get_user_pressure_setting(user_id)[0][1]
                         if pressure_settings and pills_settings:
                             max_systolic, max_diastolic = map(int, pressure_settings.split('/'))
-                            # now_systolic, now_diastolic = map(int, user_input.split('/'))
                             if now_systolic >= max_systolic or now_diastolic >= max_diastolic:
                                 bot.send_message(user_id, "<b>⚠️ Давление выше порогового значения!</b>\n\n" \
                                 f"💊 Следует приянять: {pills_settings}", parse_mode='HTML')
@@ -422,18 +459,40 @@ def main():
                     bot.send_message(user_id, "❌ Ошибка!")
             elif code == 16:
                 # 16 and 17 codes for user_settings
-                db_actions.update_user_pressure_setting(user_id, user_input)
-                bot.send_message(user_id, "<b>✅ Данные обновлены!</b>", parse_mode='HTML')
+                try:
+                    now_systolic, now_diastolic = map(int, user_input.split('/'))
+                    if now_systolic and now_diastolic:
+                        if now_systolic > 180 or now_diastolic > 140 or now_systolic < 50 or now_diastolic < 50:
+                            bot.send_message(user_id, '❌ Неверные данные!')
+                            return
+                        else:
+                            db_actions.update_user_pressure_setting(user_id, user_input)
+                            bot.send_message(user_id, "<b>✅ Данные обновлены!</b>", parse_mode='HTML')
+                    else:
+                        bot.send_message(user_id, "❌ Ошибка! Введите давление в формате: 120/60")
+                except:
+                    bot.send_message(user_id, "❌ Ошибка!")
             elif code == 17:
-                db_actions.update_user_pills_setting(user_id, user_input)
-                bot.send_message(user_id, "<b>✅ Данные обновлены!</b>", parse_mode='HTML')
-            
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    db_actions.update_user_pills_setting(user_id, user_input)
+                    bot.send_message(user_id, "<b>✅ Данные обновлены!</b>", parse_mode='HTML')
+                    db_actions.set_user_system_key(user_id, "index", None)
+
             elif code == 18:
                 # 18 and 19 codes for user reminders at tommorow
-                db_actions.set_user_system_key(user_id, "remind", user_input)
-                bot.send_message(user_id, "<b>⏰ В какое время вам напомнить об этом?</b>\n" \
-                "Пример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
-                db_actions.set_user_system_key(user_id, "index", 19)
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    db_actions.set_user_system_key(user_id, "remind", user_input)
+                    bot.send_message(user_id, "<b>⏰ В какое время вам напомнить об этом?</b>\n" \
+                    "Пример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
+                    db_actions.set_user_system_key(user_id, "index", 19)
             elif code == 19:
                 remind = db_actions.get_user_system_key(user_id, "remind")
                 try:
@@ -449,33 +508,54 @@ def main():
                     db_actions.set_user_system_key(user_id, "index", 19)
                 db_actions.add_user_remind(user_id, remind, timestamp)
                 bot.send_message(user_id, "✅ Напоминание установлено!")
+                db_actions.set_user_system_key(user_id, "index", None)
+
             elif code == 20:
-                if user_input.strip() == "0":
-                    bot.send_message(user_id, "❌ Удаление отменено")
-                    db_actions.set_user_system_key(user_id, "index", None)
-                remind_id = int(user_input)
-                db_actions.mark_reminder_as_unactive(user_id, remind_id)
-                bot.send_message(user_id, "✅ Напоминание удалено!")
+                try:
+                    if user_input.strip() == "0":
+                        bot.send_message(user_id, "❌ Удаление отменено")
+                        db_actions.set_user_system_key(user_id, "index", None)
+                    remind_id = int(user_input)
+                    if not remind_id:
+                        bot.send_message(user_id, "❌ Ошибка! Введите ID напоминания")
+                        return
+                    else:
+                        check_remind = db_actions.reminder_is_exist(user_id, remind_id)
+                        if not check_remind:
+                            bot.send_message(user_id, "❌ Напоминание не найдено!")
+                            return
+                        else:
+                            db_actions.mark_reminder_as_unactive(user_id, remind_id)
+                            bot.send_message(user_id, "✅ Напоминание удалено!")
+                            db_actions.set_user_system_key(user_id, "index", None)
+
+                except:
+                    bot.send_message(user_id, "❌ Ошибка! Введите ID напоминания")
 
             elif code == 21:
                 question_ids = db_actions.get_user_system_key(user_id, "pending_questions")
                 current_idx = db_actions.get_user_system_key(user_id, "current_question_index")
                 question_id = question_ids[current_idx]
-                db_actions.add_user_answer(user_id, question_id, user_input)
-                if current_idx + 1 < len(question_ids):
-                    next_question = db_actions.get_question_by_id(question_ids[current_idx + 1])
-                    db_actions.set_user_system_key(user_id, "current_question_index", current_idx + 1)
-                    bot.send_message(
-                        user_id,
-                        f"✅ Ответ сохранен!\n\n"
-                        f"<b>Следующий вопрос:</b>\n\n"
-                        f"{current_idx + 2}/{len(question_ids)}. {next_question[1]}\n\n"
-                        "Введите ваш ответ:",
-                        parse_mode='HTML'
-                    )
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
                 else:
-                    bot.send_message(user_id, "✅ Вы ответили на все вопросы! Спасибо!")
-                    db_actions.set_user_system_key(user_id, "index", None)
+                    db_actions.add_user_answer(user_id, question_id, user_input)
+                    if current_idx + 1 < len(question_ids):
+                        next_question = db_actions.get_question_by_id(question_ids[current_idx + 1])
+                        db_actions.set_user_system_key(user_id, "current_question_index", current_idx + 1)
+                        bot.send_message(
+                            user_id,
+                            f"✅ Ответ сохранен!\n\n"
+                            f"<b>Следующий вопрос:</b>\n\n"
+                            f"{current_idx + 2}/{len(question_ids)}. {next_question[1]}\n\n"
+                            "Введите ваш ответ:",
+                            parse_mode='HTML'
+                        )
+                    else:
+                        bot.send_message(user_id, "✅ Вы ответили на все вопросы! Спасибо!")
+                        db_actions.set_user_system_key(user_id, "index", None)
 
     def check_reminders():
         while True:
