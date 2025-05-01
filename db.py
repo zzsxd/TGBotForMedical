@@ -34,8 +34,8 @@ class DB:
                 question_id INTEGER,
                 question_status BOOL,
                 question TEXT,
-                answer_id INTEGER,
                 answer TEXT,
+                created_at TIMESTAMP DEFAULT NULL,
                 UNIQUE(row_id)
                 )
             ''')
@@ -44,6 +44,7 @@ class DB:
                 row_id INTEGER primary key autoincrement NOT NULL,
                 user_id INTEGER NOT NULL,
                 pressure TEXT,
+                cause TEXT,
                 weight INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(row_id)

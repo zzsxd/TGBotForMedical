@@ -9,9 +9,9 @@ class DbAct:
         super(DbAct, self).__init__()
         self.__db = db
         self.__config = config
-        self.__fields_pressure = ['Давление', 'Запись']
+        self.__fields_pressure = ['Давление', 'Причина', 'Запись']
         self.__fields_weight = ['Вес', 'Запись']
-        self.__fields_questions = ['Вопрос', 'Ответ']
+        self.__fields_questions = ['Вопрос', 'Ответ', 'Запись']
         self.__fields_user = ['Имя', 'Фамилия', 'Никнейм']
         self.__dump_path_xlsx = path_xlsx
 
@@ -26,6 +26,7 @@ class DbAct:
                 'VALUES (?, ?, ?, ?, ?, ?)',
                 (user_id, first_name, last_name, nick_name, json.dumps({"index": None,
                                                                         "pressure": None,
+                                                                        "now_pressure": None,
                                                                         "remind": None,
                                                                         "pending_questions": None,
                                                                         "current_question_index": None}), is_admin))
@@ -87,7 +88,7 @@ class DbAct:
         self.__db.db_write('UPDATE user_questions SET question_status = ? WHERE question_id = ? and user_id = ?', (False, question_id, user_id))
 
     def add_user_answer(self, user_id, question_id, answer):
-        self.__db.db_write('UPDATE user_questions SET answer = ?, question_status = 0 WHERE row_id = ? AND user_id = ?', (answer, question_id, user_id))
+        self.__db.db_write('UPDATE user_questions SET answer = ?, question_status = 0, created_at = CURRENT_TIMESTAMP WHERE row_id = ? AND user_id = ?', (answer, question_id, user_id))
 
     def get_question_by_id(self, question_id):
         result = self.__db.db_read(
@@ -110,10 +111,10 @@ class DbAct:
             return None
         self.__db.db_write('INSERT INTO user_settings (user_id, pressure, pills) VALUES (?, ?, ?)', (user_id, pressure, pills))
 
-    def add_pressure_user(self, user_id: int, pressure: str):
+    def add_pressure_user(self, user_id: int, pressure: str, cause: str):
         if not self.user_is_existed(user_id):
             return None
-        self.__db.db_write('INSERT INTO user_datas (user_id, pressure) VALUES (?, ?)', (user_id, pressure))
+        self.__db.db_write('INSERT INTO user_datas (user_id, pressure, cause) VALUES (?, ?)', (user_id, pressure, cause))
 
     def get_user_pressure_setting(self, user_id: int):
         if not self.user_is_existed(user_id):
@@ -165,8 +166,8 @@ class DbAct:
     
     def get_pressure_report(self, user_id: int):
         try:
-            data = {'Давление': [], 'Запись': []}
-            pressures_data = self.__db.db_read('SELECT pressure, created_at FROM user_datas WHERE user_id = ? AND pressure IS NOT NULL', (user_id,))
+            data = {'Давление': [], 'Причина': [], 'Запись': []}
+            pressures_data = self.__db.db_read('SELECT pressure, cause, created_at FROM user_datas WHERE user_id = ? AND pressure IS NOT NULL', (user_id,))
             if len(pressures_data) > 0:
                 for pressure in pressures_data:
                     for info in range(len(list(pressure))):
@@ -191,8 +192,8 @@ class DbAct:
 
     def get_question_answer_report(self, user_id: int):
         try:
-            data = {'Вопрос': [], 'Ответ': []}
-            question_answer_data = self.__db.db_read('SELECT question, answer FROM user_questions WHERE user_id = ?', (user_id,))
+            data = {'Вопрос': [], 'Ответ': [], 'Запись': []}
+            question_answer_data = self.__db.db_read('SELECT question, answer, created_at FROM user_questions WHERE user_id = ?', (user_id,))
             if len(question_answer_data) > 0:
                 for question_answer in question_answer_data:
                     for info in range(len(list(question_answer))):

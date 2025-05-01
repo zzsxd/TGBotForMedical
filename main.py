@@ -290,6 +290,24 @@ def main():
                 )
                 db_actions.set_user_system_key(user_id, "index", 20)
 
+
+            elif call.data == 'no_repeat':
+                bot.send_message(user_id, '✅ График напоминания выбран!')
+
+            elif call.data == 'repeat_everyday':
+                bot.send_message(user_id, '✅ График напоминания выбран!')
+            
+            elif call.data == 'repeat_everyweek':
+                bot.send_message(user_id, '✅ График напоминания выбран!')
+
+            elif call.data == 'repeat_everymonth':
+                bot.send_message(user_id, '✅ График напоминания выбран!')
+            
+            elif call.data == 'repeat_my_days':
+                bot.send_message(user_id, '✅ График напоминания выбран!')
+
+
+
             ######## SETTINGS BUTTONS ########
             elif call.data == "two_add_questions":
                 db_actions.set_user_system_key(user_id, "index", None)
@@ -436,7 +454,6 @@ def main():
                             bot.send_message(user_id, '❌ Неверные данные!')
                             return
                         else:
-                            db_actions.add_pressure_user(user_id, user_input)
                             bot.send_message(user_id, "<b>✅ Данные успешно записаны</b>\n\n"
                             f"Ваше давление: {user_input}", parse_mode='HTML')
                             if not db_actions.get_user_pressure_setting(user_id):
@@ -449,8 +466,13 @@ def main():
                             if now_systolic >= max_systolic or now_diastolic >= max_diastolic:
                                 bot.send_message(user_id, "<b>⚠️ Давление выше порогового значения!</b>\n\n" \
                                 f"💊 Следует приянять: {pills_settings}", parse_mode='HTML')
+                                bot.send_message(user_id, "📊 Введите причину такого давления!")
+                                db_actions.set_user_system_key(user_id, "now_pressure", user_input)
+                                db_actions.set_user_system_key(user_id, "index", 22)
                             else:
                                 bot.send_message(user_id, '<b>📊 Ваше давление соответствует нормальным показателям!</b>\nОтличный результат! ✅', parse_mode='HTML')
+                                cause = 'Давление в норме'
+                                db_actions.add_pressure_user(user_id, user_input, cause)
                         else:
                             bot.send_message(user_id, "❌ Ошибка!\n\nНет данных о пороге давления или таблетках!", reply_markup=buttons.end_question_two_buttons())
                     else:
@@ -508,6 +530,7 @@ def main():
                     db_actions.set_user_system_key(user_id, "index", 19)
                 db_actions.add_user_remind(user_id, remind, timestamp)
                 bot.send_message(user_id, "✅ Напоминание установлено!")
+                bot.send_message(user_id, "Выберите повтор напоминания", reply_markup=buttons.repeat_reminder_buttons())
                 db_actions.set_user_system_key(user_id, "index", None)
 
             elif code == 20:
@@ -556,6 +579,17 @@ def main():
                     else:
                         bot.send_message(user_id, "✅ Вы ответили на все вопросы! Спасибо!")
                         db_actions.set_user_system_key(user_id, "index", None)
+
+            elif code == 22:
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    pressure = db_actions.get_user_system_key(user_id, "now_pressure")
+                    db_actions.add_pressure_user(user_id, pressure, user_input)
+                    bot.send_message(user_id, "✅ Данные записаны!")
+                    db_actions.set_user_system_key(user_id, "index", None)
 
     def check_reminders():
         while True:

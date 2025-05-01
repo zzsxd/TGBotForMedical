@@ -62,6 +62,17 @@ class Bot_inline_btns:
         self.__markup.add(one, two, four, five)
         return self.__markup
     
+    def repeat_reminder_buttons(self):
+        one = types.InlineKeyboardButton("📅 Не повторять", callback_data="no_repeat")
+        two = types.InlineKeyboardButton("📅 Ежедневно", callback_data="repeat_everyday")
+        three = types.InlineKeyboardButton("📅 Еженедельно", callback_data="repeat_everyweek")
+        four = types.InlineKeyboardButton("📅 Ежемесячно", callback_data="repeat_everymonth")
+        five = types.InlineKeyboardButton("📅 Выбрать свои дни ", callback_data="repeat_my_days")
+
+        self.__markup.add(one, two, three, four, five)
+        return self.__markup
+
+
     def settings_buttons(self):
         one = types.InlineKeyboardButton("➕ Добавить вопросы", callback_data="two_add_questions")
         two = types.InlineKeyboardButton("🗑 Удалить вопросы", callback_data="delete_questions")
@@ -94,3 +105,4 @@ class Bot_inline_btns:
         
         self.__markup.add(one)
         return self.__markup
+    
