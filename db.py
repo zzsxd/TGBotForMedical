@@ -55,8 +55,11 @@ class DB:
                 row_id INTEGER primary key autoincrement not null,
                 user_id INTEGER NOT NULL,
                 reminder TEXT,
-                at_time INTEGER,
                 is_active BOOL,
+                base_time INTEGER NOT NULL,
+                next_time INTEGER NOT NULL,
+                repeat_type TEXT NOT NULL, 
+                custom_days TEXT,  
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(row_id)
               )

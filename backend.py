@@ -3,6 +3,7 @@ import time
 import pandas as pd
 import csv
 from openpyxl import load_workbook
+from datetime import datetime
 
 class DbAct:
     def __init__(self, db, config, path_xlsx):
@@ -28,6 +29,7 @@ class DbAct:
                                                                         "pressure": None,
                                                                         "now_pressure": None,
                                                                         "remind": None,
+                                                                        "time_remind": None,
                                                                         "pending_questions": None,
                                                                         "current_question_index": None}), is_admin))
             
@@ -114,7 +116,7 @@ class DbAct:
     def add_pressure_user(self, user_id: int, pressure: str, cause: str):
         if not self.user_is_existed(user_id):
             return None
-        self.__db.db_write('INSERT INTO user_datas (user_id, pressure, cause) VALUES (?, ?)', (user_id, pressure, cause))
+        self.__db.db_write('INSERT INTO user_datas (user_id, pressure, cause) VALUES (?, ?, ?)', (user_id, pressure, cause))
 
     def get_user_pressure_setting(self, user_id: int):
         if not self.user_is_existed(user_id):
@@ -134,19 +136,94 @@ class DbAct:
     def add_user_remind(self, user_id: int, remind: str, time: str):
         if not self.user_is_existed(user_id):
             return None
-        self.__db.db_write('INSERT INTO user_reminders (user_id, reminder, at_time, is_active) VALUES (?, ?, ?, True)', (user_id, remind, int(time)))
+        self.__db.db_write('INSERT INTO user_reminders (user_id, reminder, base_time, is_active) VALUES (?, ?, ?, True)', (user_id, remind, int(time)))
+
+    def add_reminder(self, user_id: int, remind: str, base_time: int, repeat_type: str, custom_days: str = None):
+        if not self.user_is_existed(user_id):
+            return None
+        
+        # Вычисляем next_time в зависимости от типа повторения
+        next_time = base_time
+        if repeat_type == 'daily':
+            next_time = base_time + 60  # +1 день
+        elif repeat_type == 'weekly':
+            next_time = base_time + 604800  # +1 неделя
+        elif repeat_type == 'monthly':
+            next_time = base_time + 2592000  # +1 месяц
+        elif repeat_type == 'custom' and custom_days:
+            # Для custom_days вычисляем следующий день из списка
+            current_day = datetime.fromtimestamp(base_time).weekday() + 1
+            custom_days_list = [int(d) for d in custom_days.split(',')]
+            next_day = min([d for d in custom_days_list if d > current_day], default=custom_days_list[0])
+            days_to_add = (next_day - current_day) % 7
+            next_time = base_time + (days_to_add * 86400)
+        
+        try:
+            return self.__db.db_write(
+                'INSERT INTO user_reminders (user_id, reminder, base_time, next_time, is_active, repeat_type, custom_days) '
+                'VALUES (?, ?, ?, ?, True, ?, ?)',
+                (user_id, remind, base_time, next_time, repeat_type, custom_days)
+            )
+        except Exception as e:
+            print(f"Ошибка при добавлении напоминания: {e}")
+            return None
 
     def get_user_remind(self, current_time):
         if current_time is None:
             current_time = int(time.time())
-        res = self.__db.db_read('SELECT row_id, user_id, reminder FROM user_reminders WHERE at_time <= ? AND is_active = True', (current_time,))
-        return [{'id': row[0], 'user_id': row[1], 'reminder': row[2]} for row in res]
+        
+        # Получаем все активные напоминания, которые должны сработать
+        res = self.__db.db_read(
+            'SELECT row_id, user_id, reminder, repeat_type, custom_days, base_time, next_time '
+            'FROM user_reminders WHERE next_time <= ? AND is_active = True',
+            (current_time,)
+        )
+        
+        reminders = []
+        for row in res:
+            reminder_id, user_id, reminder, repeat_type, custom_days, base_time, next_time = row
+            
+            # Если это разовое напоминание, деактивируем его
+            if repeat_type == 'no_repeat':
+                self.mark_reminder_as_completed(reminder_id)
+            else:
+                # Обновляем next_time для повторяющихся напоминаний
+                new_next_time = current_time  # Начинаем отсчет от текущего времени
+                if repeat_type == 'daily':
+                    new_next_time = current_time + 60  # +60 секунд
+                elif repeat_type == 'weekly':
+                    new_next_time = current_time + 604800  # +1 неделя
+                elif repeat_type == 'monthly':
+                    new_next_time = current_time + 2592000  # +1 месяц
+                elif repeat_type == 'custom' and custom_days:
+                    # Для custom_days проверяем, нужно ли обновлять next_time
+                    current_day = datetime.fromtimestamp(current_time).weekday() + 1
+                    custom_days_list = [int(d) for d in custom_days.split(',')]
+                    
+                    # Находим следующий день из списка
+                    next_day = min([d for d in custom_days_list if d > current_day], default=custom_days_list[0])
+                    days_to_add = (next_day - current_day) % 7
+                    new_next_time = current_time + (days_to_add * 86400)
+                
+                # Обновляем next_time в базе данных
+                self.__db.db_write(
+                    'UPDATE user_reminders SET next_time = ? WHERE row_id = ?',
+                    (new_next_time, reminder_id)
+                )
+            
+            reminders.append({
+                'id': reminder_id,
+                'user_id': user_id,
+                'reminder': reminder
+            })
+        
+        return reminders
     
     def get_today_reminders(self, user_id, start_of_day, end_of_day):
         return self.__db.db_read(
-            'SELECT row_id, reminder, at_time FROM user_reminders '
-            'WHERE user_id = ? AND at_time BETWEEN ? AND ? AND is_active = 1 '
-            'ORDER BY at_time',
+            'SELECT row_id, reminder, base_time FROM user_reminders '
+            'WHERE user_id = ? AND base_time BETWEEN ? AND ? AND is_active = 1 '
+            'ORDER BY base_time',
             (user_id, start_of_day, end_of_day)
         )
 
@@ -159,7 +236,7 @@ class DbAct:
     def get_user_remind_by_userid(self, user_id: int):
         if not self.user_is_existed(user_id):
             return None
-        return self.__db.db_read('SELECT row_id, reminder, at_time FROM user_reminders WHERE user_id = ? AND is_active = True', (user_id,))
+        return self.__db.db_read('SELECT row_id, reminder, base_time FROM user_reminders WHERE user_id = ? AND is_active = True', (user_id,))
     
     def reminder_is_exist(self, user_id: int, remind_id: int):
         return self.__db.db_read('SELECT row_id, reminder FROM user_reminders WHERE user_id = ? AND is_active = True AND row_id = ?', (user_id, remind_id,))

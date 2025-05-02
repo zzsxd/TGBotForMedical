@@ -9,6 +9,7 @@ from datetime import datetime
 from threading import Lock
 from config_parser import ConfigParser
 from frontend import Bot_inline_btns
+from telebot import types
 from backend import DbAct
 from db import DB
 
@@ -291,20 +292,27 @@ def main():
                 db_actions.set_user_system_key(user_id, "index", 20)
 
 
-            elif call.data == 'no_repeat':
-                bot.send_message(user_id, '✅ График напоминания выбран!')
+            elif call.data in ['no_repeat', 'daily', 'weekly', 'monthly', 'custom']:
+                remind_text = db_actions.get_user_system_key(user_id, "remind")
+                time_remind = db_actions.get_user_system_key(user_id, "time_remind")
+                if not remind_text:
+                    bot.send_message(user_id, "❌ Текст напоминания не найден")
+                    return
+                
+                if call.data == 'custom':
+                    bot.send_message(
+                        user_id,
+                        "Введите дни недели через запятую (1-Пн, 2-Вт, ..., 7-Вс):",
+                        reply_markup=types.ForceReply()
+                    )
+                    db_actions.set_user_system_key(user_id, "index", 23)
+                else:
+                    if db_actions.add_reminder(user_id, remind_text, time_remind, call.data):
+                        bot.send_message(user_id, "✅ Напоминание установлено!")
+                    else:
+                        bot.send_message(user_id, "❌ Ошибка при создании напоминания")
+                    db_actions.set_user_system_key(user_id, "index", None)
 
-            elif call.data == 'repeat_everyday':
-                bot.send_message(user_id, '✅ График напоминания выбран!')
-            
-            elif call.data == 'repeat_everyweek':
-                bot.send_message(user_id, '✅ График напоминания выбран!')
-
-            elif call.data == 'repeat_everymonth':
-                bot.send_message(user_id, '✅ График напоминания выбран!')
-            
-            elif call.data == 'repeat_my_days':
-                bot.send_message(user_id, '✅ График напоминания выбран!')
 
 
 
@@ -525,13 +533,15 @@ def main():
                         "Введенная дата в прошлом!\n\n" \
                         "Введите дату еще раз, пример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
                         db_actions.set_user_system_key(user_id, "index", 19)
+                        return
+                    else:
+                        db_actions.set_user_system_key(user_id, "time_remind", timestamp)
+                        bot.send_message(user_id, "✅ Напоминание установлено!")
+                        bot.send_message(user_id, "⏰ Выберите повтор напоминания", reply_markup=buttons.repeat_reminder_buttons())
+                        db_actions.set_user_system_key(user_id, "index", None)
                 except ValueError:
                     bot.send_message(user_id, "❌ Неверный формат!\nПример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
                     db_actions.set_user_system_key(user_id, "index", 19)
-                db_actions.add_user_remind(user_id, remind, timestamp)
-                bot.send_message(user_id, "✅ Напоминание установлено!")
-                bot.send_message(user_id, "Выберите повтор напоминания", reply_markup=buttons.repeat_reminder_buttons())
-                db_actions.set_user_system_key(user_id, "index", None)
 
             elif code == 20:
                 try:
@@ -591,17 +601,44 @@ def main():
                     bot.send_message(user_id, "✅ Данные записаны!")
                     db_actions.set_user_system_key(user_id, "index", None)
 
+            elif code == 23:
+                try:
+                    days = [d.strip() for d in user_input.split(',')]
+                    if all(day.isdigit() and 1 <= int(day) <= 7 for day in days):
+                        remind_text = db_actions.get_user_system_key(user_id, "remind")
+                        time_remind = db_actions.get_user_system_key(user_id, "time_remind")
+                        
+                        if db_actions.add_reminder(
+                            user_id,
+                            remind_text,
+                            time_remind,
+                            'custom',
+                            ','.join(days)
+                        ):
+                            bot.send_message(user_id, "✅ Напоминание установлено!")
+                        else:
+                            bot.send_message(user_id, "❌ Ошибка при создании напоминания")
+                    else:
+                        bot.send_message(user_id, "❌ Введите числа от 1 до 7 через запятую")
+                except Exception as e:
+                    print(f"Error setting custom days: {e}")
+                    bot.send_message(user_id, "❌ Ошибка при обработке дней")
+                db_actions.set_user_system_key(user_id, "index", None)
+
     def check_reminders():
         while True:
-            current_time = int(time.time())
-            reminders = db_actions.get_user_remind(current_time)
-            for reminder in reminders:
-                try:
-                    bot.send_message(reminder['user_id'], f"🔔 Напоминание!\n\n<b>{reminder['reminder']}</b>", parse_mode='HTML')
-                    db_actions.mark_reminder_as_completed(reminder['id'])
-                except Exception as e:
-                    print(f"Ошибка! - {e}")
-            time.sleep(60)
+            try:
+                current_time = int(time.time())
+                reminders = db_actions.get_user_remind(current_time)
+                
+                for reminder in reminders:
+                    try:
+                        bot.send_message(reminder['user_id'], f"🔔 Напоминание!\n\n<b>{reminder['reminder']}</b>", parse_mode='HTML')
+                    except Exception as e:
+                        print(f"Ошибка при отправке напоминания: {e}")
+            except Exception as e:
+                print(f"Ошибка в check_reminders: {e}")
+            time.sleep(30)
 
     threading.Thread(target=check_reminders, daemon=True).start()
     bot.polling(none_stop=True)
