@@ -9,7 +9,8 @@ class Bot_inline_btns:
     def start_buttons(self):
         one = types.InlineKeyboardButton('🔹 Добавить 10 вопросов', callback_data='add_questions')
         two = types.InlineKeyboardButton('🔹 Настройки давления', callback_data='settings_pressure')
-        self.__markup.add(one, two)
+        three = types.InlineKeyboardButton('🔹 Установить часовой пояс', callback_data='timezone_settings')
+        self.__markup.add(one, two, three)
         return self.__markup
     
     def end_question_buttons(self):
@@ -58,9 +59,25 @@ class Bot_inline_btns:
         two = types.InlineKeyboardButton("Все напоминания 📄", callback_data="all_reminders")
         four = types.InlineKeyboardButton("Добавить ➕", callback_data="add_reminder")
         five = types.InlineKeyboardButton("Удалить 🗑", callback_data="delete_reminder")
+        six = types.InlineKeyboardButton("Часовой пояс 🕥", callback_data="timezone_settings")
 
-        self.__markup.add(one, two, four, five)
+        self.__markup.add(one, two, four, five, six)
         return self.__markup
+    
+    def timezone_buttons(self):
+        one = types.InlineKeyboardButton("Петропавловск-Камчатский (+12:00)", callback_data="timezone_petropavlovsk")
+        two = types.InlineKeyboardButton('Магадан (+11:00)', callback_data="timezone_magadan")
+        three = types.InlineKeyboardButton('Владивосток (+10:00)', callback_data="timezone_vladivostok")
+        four = types.InlineKeyboardButton('Якутск (+09:00)', callback_data="timezone_yakutsk")
+        five = types.InlineKeyboardButton('Иркутск (+08:00)', callback_data="timezone_irkutsk")
+        six = types.InlineKeyboardButton('Новосибирск (+07:00)', callback_data="timezone_irkutsk")
+        seven = types.InlineKeyboardButton('Самара (+04:00)', callback_data="timezone_samara")
+        eight = types.InlineKeyboardButton('Москва (+03:00)', callback_data="timezone_moscow")
+        nine = types.InlineKeyboardButton('Калининград (+02:00)', callback_data="timezone_kaliningrad")
+        
+        self.__markup.add(one, two, three, four, five, six, seven, eight, nine)
+        return self.__markup
+        
     
     def repeat_reminder_buttons(self):
         one = types.InlineKeyboardButton("📅 Не повторять", callback_data="no_repeat")

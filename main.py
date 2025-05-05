@@ -15,6 +15,9 @@ from db import DB
 
 config_name = 'secrets.json'
 
+# Глобальная переменная для хранения потока
+reminder_thread = None
+
 def main():
     @bot.message_handler(commands=['start', 'admin'])
     def start(message):
@@ -107,13 +110,50 @@ def main():
                 bot.send_message(user_id, "<b>Напоминания:</b>\n\n" \
                 "📄 Выберите, за какой период получить напоминания?", parse_mode="HTML", reply_markup=buttons.reminders_buttons())
 
+            elif call.data == 'timezone_settings':
+                db_actions.set_user_system_key(user_id, "index", None)
+                current_timezone = db_actions.get_user_timezone(user_id)
+                bot.send_message(
+                    user_id,
+                    f"⏰ Текущий часовой пояс: {current_timezone}\n\n"
+                    "Выберите ваш город для установки часового пояса:",
+                    parse_mode="HTML",
+                    reply_markup=buttons.timezone_buttons()
+                )
+
+            elif call.data.startswith('timezone_'):
+                timezone_map = {
+                    'timezone_petropavlovsk': 'Asia/Kamchatka',
+                    'timezone_magadan': 'Asia/Magadan',
+                    'timezone_vladivostok': 'Asia/Vladivostok',
+                    'timezone_yakutsk': 'Asia/Yakutsk',
+                    'timezone_irkutsk': 'Asia/Irkutsk',
+                    'timezone_novosibirsk': 'Asia/Novosibirsk',
+                    'timezone_samara': 'Europe/Samara',
+                    'timezone_moscow': 'Europe/Moscow',
+                    'timezone_kaliningrad': 'Europe/Kaliningrad'
+                }
+                
+                timezone = timezone_map.get(call.data)
+                if timezone:
+                    if db_actions.set_user_timezone(user_id, timezone):
+                        bot.answer_callback_query(call.id, f"✅ Часовой пояс установлен: {timezone}")
+                        bot.edit_message_text(
+                            f"⏰ Ваш часовой пояс установлен: {timezone}",
+                            call.message.chat.id,
+                            call.message.message_id
+                        )
+                    else:
+                        bot.answer_callback_query(call.id, "❌ Ошибка при установке часового пояса")
+
             elif call.data == 'settings':
                 db_actions.set_user_system_key(user_id, "index", None)
                 bot.send_message(user_id, "<b>⚙️ Настройки:</b>\n\n" \
                 "📌 Здесь вы можете!\n" \
                 "✔ Добавить/Удалить вопросы\n" \
                 "✔ Настроить давление\n" \
-                "✔ Настроить таблетки", parse_mode="HTML", reply_markup=buttons.settings_buttons())
+                "✔ Настроить таблетки\n" \
+                "✔ Настроить часовой пояс", parse_mode="HTML", reply_markup=buttons.settings_buttons())
 
             ######## MORNING BUTTONS ########
             elif call.data == 'reminders_today':
@@ -307,10 +347,40 @@ def main():
                     )
                     db_actions.set_user_system_key(user_id, "index", 23)
                 else:
-                    if db_actions.add_reminder(user_id, remind_text, time_remind, call.data):
-                        bot.send_message(user_id, "✅ Напоминание установлено!")
-                    else:
+                    # Получаем часовой пояс пользователя
+                    user_timezone = db_actions.get_user_timezone(user_id)
+                    if not user_timezone:
+                        user_timezone = 'UTC'
+                    
+                    try:
+                        import pytz
+                        from datetime import datetime, timezone as tz, timedelta
+                        user_tz = pytz.timezone(user_timezone)
+                        
+                        # Конвертируем время напоминания в локальное время пользователя
+                        remind_dt = datetime.fromtimestamp(time_remind, tz=tz.utc).astimezone(user_tz)
+                        
+                        # Вычисляем next_time в зависимости от типа повторения
+                        if call.data == 'daily':
+                            next_time = remind_dt + timedelta(days=1)
+                        elif call.data == 'weekly':
+                            next_time = remind_dt + timedelta(weeks=1)
+                        elif call.data == 'monthly':
+                            next_time = remind_dt + timedelta(days=30)
+                        else:  # no_repeat
+                            next_time = remind_dt
+                        
+                        # Конвертируем обратно в UTC для хранения
+                        next_time_utc = int(next_time.astimezone(tz.utc).timestamp())
+                        
+                        if db_actions.add_reminder(user_id, remind_text, time_remind, call.data):
+                            bot.send_message(user_id, "✅ Напоминание установлено!")
+                        else:
+                            bot.send_message(user_id, "❌ Ошибка при создании напоминания")
+                    except Exception as e:
+                        print(f"Ошибка при установке повторяющегося напоминания: {e}")
                         bot.send_message(user_id, "❌ Ошибка при создании напоминания")
+                    
                     db_actions.set_user_system_key(user_id, "index", None)
 
 
@@ -334,7 +404,7 @@ def main():
                     '📌 Нажмите на кнопку ниже, чтобы добавить их', reply_markup=buttons.add_question_btns())
                     return
                 questions_list = []
-                for idx, (q_id, q_text, *_) in enumerate(questions, start=1):  # *_ для остальных полей
+                for idx, (q_id, q_text, *_) in enumerate(questions, start=1):
                     questions_list.append(f"{idx}. {q_text} [ID: {q_id}]")
                 questions_text = "\n".join(questions_list)
                 bot.send_message(
@@ -367,8 +437,6 @@ def main():
                 db_actions.set_user_system_key(user_id, "index", None)
                 bot.send_message(user_id, '<b>📌 Укажите таблетки, которые следует принимать при высоком давлении!</b>\n\n', parse_mode='HTML')
                 db_actions.set_user_system_key(user_id, "index", 17)
-
-
 
 
     @bot.message_handler(content_types=['text'])
@@ -526,15 +594,31 @@ def main():
             elif code == 19:
                 remind = db_actions.get_user_system_key(user_id, "remind")
                 try:
+                    # Получаем часовой пояс пользователя
+                    user_timezone = db_actions.get_user_timezone(user_id)
+                    if not user_timezone:
+                        user_timezone = 'UTC'
+                    
+                    import pytz
+                    from datetime import datetime, timezone as tz
+                    user_tz = pytz.timezone(user_timezone)
+                    
+                    # Парсим введенную дату в локальном времени пользователя
                     time_dt = datetime.strptime(user_input, '%d.%m.%Y %H:%M')
-                    timestamp = int(time_dt.timestamp())
-                    if time_dt < datetime.now():
+                    time_dt = user_tz.localize(time_dt)
+                    
+                    # Получаем текущее время в часовом поясе пользователя
+                    current_time = datetime.now(user_tz)
+                    
+                    if time_dt < current_time:
                         bot.send_message(user_id, "❌ Ошибка!\n" \
                         "Введенная дата в прошлом!\n\n" \
                         "Введите дату еще раз, пример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
                         db_actions.set_user_system_key(user_id, "index", 19)
                         return
                     else:
+                        # Конвертируем время в UTC для хранения
+                        timestamp = int(time_dt.astimezone(tz.utc).timestamp())
                         db_actions.set_user_system_key(user_id, "time_remind", timestamp)
                         bot.send_message(user_id, "✅ Напоминание установлено!")
                         bot.send_message(user_id, "⏰ Выберите повтор напоминания", reply_markup=buttons.repeat_reminder_buttons())
@@ -615,7 +699,7 @@ def main():
                             'custom',
                             ','.join(days)
                         ):
-                            bot.send_message(user_id, "✅ Напоминание установлено!")
+                            bot.send_message(user_id, "✅ Повторение напоминания установлено!")
                         else:
                             bot.send_message(user_id, "❌ Ошибка при создании напоминания")
                     else:
@@ -625,22 +709,61 @@ def main():
                     bot.send_message(user_id, "❌ Ошибка при обработке дней")
                 db_actions.set_user_system_key(user_id, "index", None)
 
+
     def check_reminders():
+        print("Запуск функции check_reminders...")  # Добавляем лог для отладки
         while True:
             try:
                 current_time = int(time.time())
+                print(f"Текущее время: {current_time}")
+                
                 reminders = db_actions.get_user_remind(current_time)
                 
+                if reminders:  # Добавляем проверку на наличие напоминаний
+                    print(f"Найдено {len(reminders)} напоминаний для отправки")  # Лог количества напоминаний
+                    
                 for reminder in reminders:
                     try:
-                        bot.send_message(reminder['user_id'], f"🔔 Напоминание!\n\n<b>{reminder['reminder']}</b>", parse_mode='HTML')
+                        print(f"Отправка напоминания пользователю {reminder['user_id']}")  # Лог отправки
+                        bot.send_message(
+                            reminder['user_id'],
+                            f"🔔 Напоминание: {reminder['reminder']}"
+                        )
+                        print(f"Напоминание успешно отправлено пользователю {reminder['user_id']}")
                     except Exception as e:
-                        print(f"Ошибка при отправке напоминания: {e}")
+                        print(f"Ошибка при отправке напоминания пользователю {reminder['user_id']}: {e}")
+                        continue
+            
+                time.sleep(1)
             except Exception as e:
-                print(f"Ошибка в check_reminders: {e}")
-            time.sleep(30)
+                print(f"Критическая ошибка в check_reminders: {e}")
+                time.sleep(1)
 
-    threading.Thread(target=check_reminders, daemon=True).start()
+    # Запускаем функцию check_reminders в отдельном потоке
+    try:
+        global reminder_thread
+        reminder_thread = threading.Thread(target=check_reminders, daemon=True)
+        reminder_thread.start()
+        print("Поток check_reminders успешно запущен")
+    except Exception as e:
+        print(f"Ошибка при запуске потока check_reminders: {e}")
+
+    # Добавляем проверку состояния потока
+    def check_thread_status():
+        global reminder_thread
+        while True:
+            if not reminder_thread.is_alive():
+                print("Поток check_reminders остановлен! Пытаемся перезапустить...")
+                try:
+                    reminder_thread = threading.Thread(target=check_reminders, daemon=True)
+                    reminder_thread.start()
+                    print("Поток check_reminders успешно перезапущен")
+                except Exception as e:
+                    print(f"Ошибка при перезапуске потока check_reminders: {e}")
+            time.sleep(5)
+
+    # Запускаем мониторинг состояния потока
+    threading.Thread(target=check_thread_status, daemon=True).start()
     bot.polling(none_stop=True)
 
 
