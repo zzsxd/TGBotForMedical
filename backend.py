@@ -3,7 +3,7 @@ import time
 import pandas as pd
 import csv
 from openpyxl import load_workbook
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class DbAct:
     def __init__(self, db, config, path_xlsx):
@@ -77,7 +77,24 @@ class DbAct:
     
     #### ОСНОВНЫЕ ЗАПРОСЫ #####
     def write_user_question(self, user_id: int, question_id: int, question: str):
-        self.__db.db_write('INSERT INTO user_questions (user_id, question_id, question, question_status) VALUES (?, ?, ?, True)', (user_id, question_id, question))
+        # Получаем максимальный ID вопроса для данного пользователя
+        max_id = self.__db.db_read(
+            'SELECT MAX(question_id) FROM user_questions WHERE user_id = ?',
+            (user_id,)
+        )[0][0]
+        
+        # Если это первый вопрос, устанавливаем ID = 1
+        if max_id is None:
+            new_id = 1
+        else:
+            # Иначе берем следующий ID
+            new_id = max_id + 1
+        
+        # Вставляем вопрос с новым ID
+        self.__db.db_write(
+            'INSERT INTO user_questions (user_id, question_id, question, question_status) VALUES (?, ?, ?, True)',
+            (user_id, new_id, question)
+        )
 
     def get_user_question(self, user_id: int):
         if not self.user_is_existed(user_id):
@@ -142,27 +159,31 @@ class DbAct:
         if not self.user_is_existed(user_id):
             return None
         
-        # Вычисляем next_time в зависимости от типа повторения
-        next_time = base_time
-        if repeat_type == 'daily':
-            next_time = base_time + 60  # +1 день
-        elif repeat_type == 'weekly':
-            next_time = base_time + 604800  # +1 неделя
-        elif repeat_type == 'monthly':
-            next_time = base_time + 2592000  # +1 месяц
-        elif repeat_type == 'custom' and custom_days:
-            # Для custom_days вычисляем следующий день из списка
-            current_day = datetime.fromtimestamp(base_time).weekday() + 1
-            custom_days_list = [int(d) for d in custom_days.split(',')]
-            next_day = min([d for d in custom_days_list if d > current_day], default=custom_days_list[0])
-            days_to_add = (next_day - current_day) % 7
-            next_time = base_time + (days_to_add * 86400)
-        
+        # Получаем часовой пояс пользователя
+        user_timezone = self.get_user_timezone(user_id)
+        if not user_timezone:
+            user_timezone = 'UTC'
+            
         try:
+            import pytz
+            from datetime import datetime, timezone as tz, timedelta
+            user_tz = pytz.timezone(user_timezone)
+            
+            # Конвертируем время в часовой пояс пользователя
+            base_dt = datetime.fromtimestamp(base_time, tz=tz.utc).astimezone(user_tz)
+            
+            # Для разовых напоминаний next_time равен base_time
+            if repeat_type == 'no_repeat':
+                next_time = base_time
+            else:
+                # Для повторяющихся напоминаний next_time равен base_time
+                # (они будут обновляться при отправке)
+                next_time = base_time
+            
             return self.__db.db_write(
-                'INSERT INTO user_reminders (user_id, reminder, base_time, next_time, is_active, repeat_type, custom_days) '
-                'VALUES (?, ?, ?, ?, True, ?, ?)',
-                (user_id, remind, base_time, next_time, repeat_type, custom_days)
+                'INSERT INTO user_reminders (user_id, reminder, base_time, next_time, is_active, repeat_type, custom_days, timezone) '
+                'VALUES (?, ?, ?, ?, True, ?, ?, ?)',
+                (user_id, remind, base_time, next_time, repeat_type, custom_days, user_timezone)
             )
         except Exception as e:
             print(f"Ошибка при добавлении напоминания: {e}")
@@ -172,60 +193,150 @@ class DbAct:
         if current_time is None:
             current_time = int(time.time())
         
-        # Получаем все активные напоминания, которые должны сработать
+        print(f"Проверка напоминаний для времени {current_time}")
+        
+        # Получаем все активные напоминания
         res = self.__db.db_read(
-            'SELECT row_id, user_id, reminder, repeat_type, custom_days, base_time, next_time '
-            'FROM user_reminders WHERE next_time <= ? AND is_active = True',
-            (current_time,)
+            'SELECT r.row_id, r.user_id, r.reminder, r.repeat_type, r.custom_days, r.base_time, r.next_time, r.timezone '
+            'FROM user_reminders r '
+            'WHERE r.is_active = True',
+            ()
         )
+        
+        print(f"Найдено {len(res)} активных напоминаний в базе данных")
         
         reminders = []
         for row in res:
-            reminder_id, user_id, reminder, repeat_type, custom_days, base_time, next_time = row
+            reminder_id, user_id, reminder, repeat_type, custom_days, base_time, next_time, timezone = row
             
-            # Если это разовое напоминание, деактивируем его
-            if repeat_type == 'no_repeat':
-                self.mark_reminder_as_completed(reminder_id)
-            else:
-                # Обновляем next_time для повторяющихся напоминаний
-                new_next_time = current_time  # Начинаем отсчет от текущего времени
-                if repeat_type == 'daily':
-                    new_next_time = current_time + 60  # +60 секунд
-                elif repeat_type == 'weekly':
-                    new_next_time = current_time + 604800  # +1 неделя
-                elif repeat_type == 'monthly':
-                    new_next_time = current_time + 2592000  # +1 месяц
-                elif repeat_type == 'custom' and custom_days:
-                    # Для custom_days проверяем, нужно ли обновлять next_time
-                    current_day = datetime.fromtimestamp(current_time).weekday() + 1
-                    custom_days_list = [int(d) for d in custom_days.split(',')]
-                    
-                    # Находим следующий день из списка
-                    next_day = min([d for d in custom_days_list if d > current_day], default=custom_days_list[0])
-                    days_to_add = (next_day - current_day) % 7
-                    new_next_time = current_time + (days_to_add * 86400)
+            try:
+                from datetime import datetime, timezone as tz, timedelta
+                import pytz
+                user_tz = pytz.timezone(timezone)
                 
-                # Обновляем next_time в базе данных
-                self.__db.db_write(
-                    'UPDATE user_reminders SET next_time = ? WHERE row_id = ?',
-                    (new_next_time, reminder_id)
-                )
-            
-            reminders.append({
-                'id': reminder_id,
-                'user_id': user_id,
-                'reminder': reminder
-            })
+                # Конвертируем текущее время в часовой пояс пользователя
+                current_time_user = datetime.fromtimestamp(current_time, tz=tz.utc).astimezone(user_tz)
+                
+                # Конвертируем время напоминания в часовой пояс пользователя
+                remind_time = datetime.fromtimestamp(next_time, tz=tz.utc).astimezone(user_tz)
+                
+                # Проверяем, нужно ли отправить напоминание в текущем часовом поясе
+                if remind_time <= current_time_user:
+                    print(f"Напоминание {reminder_id} для пользователя {user_id} должно быть отправлено в {timezone}")
+                    
+                    # Если это разовое напоминание, деактивируем его
+                    if repeat_type == 'no_repeat':
+                        self.mark_reminder_as_completed(reminder_id)
+                    else:
+                        # Для повторяющихся напоминаний обновляем next_time
+                        base_dt = datetime.fromtimestamp(base_time, tz=tz.utc).astimezone(user_tz)
+                        
+                        if repeat_type == 'daily':
+                            # Устанавливаем на завтра в то же время
+                            next_time_dt = current_time_user.replace(
+                                hour=base_dt.hour,
+                                minute=base_dt.minute,
+                                second=0,
+                                microsecond=0
+                            ) + timedelta(days=1)
+                        elif repeat_type == 'weekly':
+                            # Устанавливаем на следующую неделю в тот же день и время
+                            next_time_dt = current_time_user.replace(
+                                hour=base_dt.hour,
+                                minute=base_dt.minute,
+                                second=0,
+                                microsecond=0
+                            ) + timedelta(weeks=1)
+                        elif repeat_type == 'monthly':
+                            # Устанавливаем на следующий месяц в тот же день и время
+                            next_time_dt = current_time_user.replace(
+                                hour=base_dt.hour,
+                                minute=base_dt.minute,
+                                second=0,
+                                microsecond=0
+                            ) + timedelta(days=30)
+                        elif repeat_type == 'custom' and custom_days:
+                            # Для пользовательских дней находим следующий день из списка
+                            current_day = current_time_user.weekday() + 1
+                            custom_days_list = [int(d) for d in custom_days.split(',')]
+                            next_day = min([d for d in custom_days_list if d > current_day], default=custom_days_list[0])
+                            days_to_add = (next_day - current_day) % 7
+                            
+                            next_time_dt = current_time_user.replace(
+                                hour=base_dt.hour,
+                                minute=base_dt.minute,
+                                second=0,
+                                microsecond=0
+                            ) + timedelta(days=days_to_add)
+                        
+                        # Конвертируем обратно в UTC
+                        new_next_time = int(next_time_dt.astimezone(tz.utc).timestamp())
+                        
+                        print(f"Обновление next_time для напоминания {reminder_id} на {new_next_time}")
+                        
+                        # Обновляем next_time в базе данных
+                        self.__db.db_write(
+                            'UPDATE user_reminders SET next_time = ? WHERE row_id = ?',
+                            (new_next_time, reminder_id)
+                        )
+                    
+                    reminders.append({
+                        'id': reminder_id,
+                        'user_id': user_id,
+                        'reminder': reminder
+                    })
+                
+            except Exception as e:
+                print(f"Ошибка при обработке часового пояса для напоминания {reminder_id}: {e}")
+                continue
         
+        print(f"Возвращено {len(reminders)} напоминаний для отправки")
         return reminders
     
     def get_today_reminders(self, user_id, start_of_day, end_of_day):
-        return self.__db.db_read(
-            'SELECT row_id, reminder, base_time FROM user_reminders '
-            'WHERE user_id = ? AND base_time BETWEEN ? AND ? AND is_active = 1 '
-            'ORDER BY base_time',
-            (user_id, start_of_day, end_of_day)
-        )
+        # Получаем часовой пояс пользователя
+        user_timezone = self.get_user_timezone(user_id)
+        if not user_timezone:
+            user_timezone = 'UTC'
+            
+        try:
+            import pytz
+            from datetime import datetime, timezone as tz
+            user_tz = pytz.timezone(user_timezone)
+            
+            # Конвертируем временные метки в локальное время пользователя
+            start_dt = datetime.fromtimestamp(start_of_day, tz=tz.utc).astimezone(user_tz)
+            end_dt = datetime.fromtimestamp(end_of_day, tz=tz.utc).astimezone(user_tz)
+            
+            # Получаем начало и конец дня в UTC
+            start_of_day_utc = int(start_dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+            end_of_day_utc = int(end_dt.replace(hour=23, minute=59, second=59, microsecond=999999).timestamp())
+            
+            # Получаем напоминания
+            reminders = self.__db.db_read(
+                'SELECT row_id, reminder, base_time FROM user_reminders '
+                'WHERE user_id = ? AND base_time BETWEEN ? AND ? AND is_active = 1 '
+                'ORDER BY base_time',
+                (user_id, start_of_day_utc, end_of_day_utc)
+            )
+            
+            # Конвертируем время напоминаний в локальное время пользователя
+            formatted_reminders = []
+            for reminder in reminders:
+                remind_id, remind_text, remind_time = reminder
+                remind_dt = datetime.fromtimestamp(remind_time, tz=tz.utc).astimezone(user_tz)
+                formatted_reminders.append((remind_id, remind_text, int(remind_dt.timestamp())))
+            
+            return formatted_reminders
+        except Exception as e:
+            print(f"Ошибка при обработке часового пояса: {e}")
+            # В случае ошибки возвращаем результат без учета часового пояса
+            return self.__db.db_read(
+                'SELECT row_id, reminder, base_time FROM user_reminders '
+                'WHERE user_id = ? AND base_time BETWEEN ? AND ? AND is_active = 1 '
+                'ORDER BY base_time',
+                (user_id, start_of_day, end_of_day)
+            )
 
     def mark_reminder_as_completed(self, reminder_id: int):
         self.__db.db_write('UPDATE user_reminders SET is_active = False WHERE row_id = ?', (reminder_id,))
@@ -292,3 +403,17 @@ class DbAct:
                 df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='Пользователи', index=False)
         except Exception as e:
             return None
+
+    def set_user_timezone(self, user_id: int, timezone: str):
+        if not self.user_is_existed(user_id):
+            return None
+        return self.__db.db_write(
+            'UPDATE users SET timezone = ? WHERE user_id = ?',
+            (timezone, user_id)
+        )
+
+    def get_user_timezone(self, user_id: int):
+        if not self.user_is_existed(user_id):
+            return 'UTC'
+        result = self.__db.db_read('SELECT timezone FROM users WHERE user_id = ?', (user_id,))
+        return result[0][0] if result else 'UTC'
