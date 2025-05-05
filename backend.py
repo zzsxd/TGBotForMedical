@@ -193,8 +193,6 @@ class DbAct:
         if current_time is None:
             current_time = int(time.time())
         
-        print(f"Проверка напоминаний для времени {current_time}")
-        
         # Получаем все активные напоминания
         res = self.__db.db_read(
             'SELECT r.row_id, r.user_id, r.reminder, r.repeat_type, r.custom_days, r.base_time, r.next_time, r.timezone '
@@ -202,8 +200,6 @@ class DbAct:
             'WHERE r.is_active = True',
             ()
         )
-        
-        print(f"Найдено {len(res)} активных напоминаний в базе данных")
         
         reminders = []
         for row in res:
@@ -222,8 +218,6 @@ class DbAct:
                 
                 # Проверяем, нужно ли отправить напоминание в текущем часовом поясе
                 if remind_time <= current_time_user:
-                    print(f"Напоминание {reminder_id} для пользователя {user_id} должно быть отправлено в {timezone}")
-                    
                     # Если это разовое напоминание, деактивируем его
                     if repeat_type == 'no_repeat':
                         self.mark_reminder_as_completed(reminder_id)
@@ -272,8 +266,6 @@ class DbAct:
                         # Конвертируем обратно в UTC
                         new_next_time = int(next_time_dt.astimezone(tz.utc).timestamp())
                         
-                        print(f"Обновление next_time для напоминания {reminder_id} на {new_next_time}")
-                        
                         # Обновляем next_time в базе данных
                         self.__db.db_write(
                             'UPDATE user_reminders SET next_time = ? WHERE row_id = ?',
@@ -287,10 +279,8 @@ class DbAct:
                     })
                 
             except Exception as e:
-                print(f"Ошибка при обработке часового пояса для напоминания {reminder_id}: {e}")
                 continue
         
-        print(f"Возвращено {len(reminders)} напоминаний для отправки")
         return reminders
     
     def get_today_reminders(self, user_id, start_of_day, end_of_day):

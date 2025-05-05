@@ -23,6 +23,7 @@ class DB:
                 last_name TEXT,
                 nick_name TEXT,
                 is_admin BOOL,
+                timezone TEXT DEFAULT 'UTC',
                 system_data TEXT,
                 UNIQUE(user_id)
                 )
@@ -59,7 +60,8 @@ class DB:
                 base_time INTEGER NOT NULL,
                 next_time INTEGER NOT NULL,
                 repeat_type TEXT NOT NULL, 
-                custom_days TEXT,  
+                custom_days TEXT,
+                timezone TEXT DEFAULT 'UTC',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(row_id)
               )
