@@ -711,32 +711,22 @@ def main():
 
 
     def check_reminders():
-        print("Запуск функции check_reminders...")  # Добавляем лог для отладки
         while True:
             try:
                 current_time = int(time.time())
-                print(f"Текущее время: {current_time}")
-                
                 reminders = db_actions.get_user_remind(current_time)
                 
-                if reminders:  # Добавляем проверку на наличие напоминаний
-                    print(f"Найдено {len(reminders)} напоминаний для отправки")  # Лог количества напоминаний
-                    
                 for reminder in reminders:
                     try:
-                        print(f"Отправка напоминания пользователю {reminder['user_id']}")  # Лог отправки
                         bot.send_message(
                             reminder['user_id'],
                             f"🔔 Напоминание: {reminder['reminder']}"
                         )
-                        print(f"Напоминание успешно отправлено пользователю {reminder['user_id']}")
                     except Exception as e:
-                        print(f"Ошибка при отправке напоминания пользователю {reminder['user_id']}: {e}")
                         continue
             
                 time.sleep(1)
             except Exception as e:
-                print(f"Критическая ошибка в check_reminders: {e}")
                 time.sleep(1)
 
     # Запускаем функцию check_reminders в отдельном потоке
@@ -744,22 +734,19 @@ def main():
         global reminder_thread
         reminder_thread = threading.Thread(target=check_reminders, daemon=True)
         reminder_thread.start()
-        print("Поток check_reminders успешно запущен")
     except Exception as e:
-        print(f"Ошибка при запуске потока check_reminders: {e}")
+        pass
 
     # Добавляем проверку состояния потока
     def check_thread_status():
         global reminder_thread
         while True:
             if not reminder_thread.is_alive():
-                print("Поток check_reminders остановлен! Пытаемся перезапустить...")
                 try:
                     reminder_thread = threading.Thread(target=check_reminders, daemon=True)
                     reminder_thread.start()
-                    print("Поток check_reminders успешно перезапущен")
                 except Exception as e:
-                    print(f"Ошибка при перезапуске потока check_reminders: {e}")
+                    pass
             time.sleep(5)
 
     # Запускаем мониторинг состояния потока
