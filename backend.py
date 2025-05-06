@@ -12,7 +12,7 @@ class DbAct:
         self.__config = config
         self.__fields_pressure = ['Давление', 'Причина', 'Запись']
         self.__fields_weight = ['Вес', 'Запись']
-        self.__fields_questions = ['Вопрос', 'Ответ', 'Запись']
+        self.__fields_questions = ['Вопрос', 'Ответ', 'Последняя запись']
         self.__fields_user = ['Имя', 'Фамилия', 'Никнейм']
         self.__dump_path_xlsx = path_xlsx
 
@@ -105,9 +105,25 @@ class DbAct:
         if not self.user_is_existed(user_id):
             return None
         self.__db.db_write('UPDATE user_questions SET question_status = ? WHERE question_id = ? and user_id = ?', (False, question_id, user_id))
-
+    
     def add_user_answer(self, user_id, question_id, answer):
-        self.__db.db_write('UPDATE user_questions SET answer = ?, question_status = 0, created_at = CURRENT_TIMESTAMP WHERE row_id = ? AND user_id = ?', (answer, question_id, user_id))
+        # Получаем текущий ответ
+        current_answer = self.__db.db_read('''
+            SELECT answer FROM user_questions 
+            WHERE row_id = ? AND user_id = ?
+        ''', (question_id, user_id))
+        
+        # Формируем новый ответ
+        new_answer = answer
+        if current_answer and current_answer[0][0]:
+            new_answer = f"{current_answer[0][0]}|{answer}"
+        
+        # Обновляем поле
+        self.__db.db_write('''
+            UPDATE user_questions 
+            SET answer = ?, created_at = CURRENT_TIMESTAMP 
+            WHERE row_id = ? AND user_id = ?
+        ''', (new_answer, question_id, user_id))
 
     def get_question_by_id(self, question_id):
         result = self.__db.db_read(
@@ -370,7 +386,7 @@ class DbAct:
 
     def get_question_answer_report(self, user_id: int):
         try:
-            data = {'Вопрос': [], 'Ответ': [], 'Запись': []}
+            data = {'Вопрос': [], 'Ответ': [], 'Последняя запись': []}
             question_answer_data = self.__db.db_read('SELECT question, answer, created_at FROM user_questions WHERE user_id = ?', (user_id,))
             if len(question_answer_data) > 0:
                 for question_answer in question_answer_data:
