@@ -5,7 +5,7 @@ import re
 import json
 import threading
 import platform
-from datetime import datetime
+import datetime
 from threading import Lock
 from config_parser import ConfigParser
 from frontend import Bot_inline_btns
@@ -86,7 +86,7 @@ def main():
             elif call.data == 'morning':
                 db_actions.set_user_system_key(user_id, "index", None)
                 bot.send_message(user_id, "<b>🌅 Доброе утро!</b> \n\n"
-                f"😇 {datetime.today().day} число - отличный день, чтобы позаботиться о себе.", parse_mode='HTML', reply_markup=buttons.morning_buttons())
+                f"😇 Сегодня отличное утро - хороший повод, чтобы позаботиться о себе.", parse_mode='HTML', reply_markup=buttons.morning_buttons())
             
             elif call.data == 'evening':
                 db_actions.set_user_system_key(user_id, "index", None)
