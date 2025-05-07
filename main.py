@@ -5,7 +5,7 @@ import re
 import json
 import threading
 import platform
-import datetime
+from datetime import datetime
 from threading import Lock
 from config_parser import ConfigParser
 from frontend import Bot_inline_btns
@@ -156,36 +156,53 @@ def main():
                 "✔ Настроить часовой пояс", parse_mode="HTML", reply_markup=buttons.settings_buttons())
 
             ######## MORNING BUTTONS ########
-            elif call.data == 'reminders_today':
-                # bot send message with today reminders
-                db_actions.set_user_system_key(user_id, "index", None)
-                today = datetime.now().date()
+            elif call.data == 'reminders_today':  
+                from datetime import datetime, time         
+                try:
+                    # Сбрасываем индекс
+                    db_actions.set_user_system_key(user_id, "index", None)
+                    
+                    # Получаем текущую дату
+                    today = datetime.now().date()
+                    
+                    # Получаем timestamp начала и конца дня
+                    start_of_day = int(datetime.combine(today, time.min).timestamp())
+                    end_of_day = int(datetime.combine(today, time.max).timestamp())
+                    
+                    # Получаем напоминания на сегодня
+                    reminds = db_actions.get_today_reminders(user_id, start_of_day, end_of_day)
+                    
+                    if not reminds:
+                        bot.send_message(user_id, "📅 У вас нет напоминаний на сегодня")
+                        return
+                    
+                    # Формируем список
+                    reminds_list = []
+                    for idx, remind in enumerate(reminds, start=1):
+                        try:
+                            remind_time = datetime.fromtimestamp(remind[2])
+                            formatted_time = remind_time.strftime('%H:%M')
+                            reminds_list.append(f"{idx}. {remind[1]} - {formatted_time}")
+                        except (IndexError, TypeError) as e:
+                            print(f"Ошибка обработки напоминания {remind}: {e}")
+                            continue
+                    
+                    # Формируем дату для вывода
+                    today_str = today.strftime('%d.%m.%Y')
+                    
+                    # Отправляем пользователю
+                    bot.send_message(
+                        user_id,
+                        f"📅 Ваши напоминания на сегодня ({today_str}):\n\n" +
+                        "\n".join(reminds_list),
+                        parse_mode="Markdown"
+                    )
                 
-                # Получаем timestamp начала и конца дня
-                start_of_day = int(datetime.combine(today, datetime.min.time()).timestamp())
-                end_of_day = int(datetime.combine(today, datetime.max.time()).timestamp())
-                
-                # Получаем напоминания на сегодня
-                reminds = db_actions.get_today_reminders(user_id, start_of_day, end_of_day)
-                
-                if not reminds:
-                    bot.send_message(user_id, "📅 У вас нет напоминаний на сегодня")
-                    return
-                
-                # Формируем список
-                reminds_list = []
-                for idx, remind in enumerate(reminds, start=1):
-                    remind_time = datetime.fromtimestamp(remind[2])
-                    formatted_time = remind_time.strftime('%H:%M')
-                    reminds_list.append(f"{idx}. {remind[1]} - {formatted_time}")
-                
-                # Отправляем пользователю
-                today_str = today.strftime('%d.%m.%Y')
-                bot.send_message(
-                    user_id,
-                    f"📅 Ваши напоминания на сегодня ({today_str}):\n\n" +
-                    "\n".join(reminds_list)
-                )
+                except Exception as e:
+                    print(f"Ошибка при получении напоминаний на сегодня: {e}")
+                    bot.send_message(user_id, "❌ Произошла ошибка при получении напоминаний")
+
+                    
             elif call.data == 'pressure_today':
                 db_actions.set_user_system_key(user_id, "index", None)
                 bot.send_message(user_id, "<b>📌 Отправьте ваше давление сейчас</b>\n\n" \
@@ -259,6 +276,7 @@ def main():
 
             ######## REMINDERS BUTTONS ########
             elif call.data == "all_reminders":
+                
                 # bot send all reminders
                 db_actions.set_user_system_key(user_id, "index", None)
                 reminds = db_actions.get_user_remind_by_userid(user_id)
@@ -687,7 +705,7 @@ def main():
 
             elif code == 23:
                 try:
-                    days = [d.strip() for d in user_input.split(',')]
+                    days = list(set([d.strip() for d in user_input.split(',')]))
                     if all(day.isdigit() and 1 <= int(day) <= 7 for day in days):
                         remind_text = db_actions.get_user_system_key(user_id, "remind")
                         time_remind = db_actions.get_user_system_key(user_id, "time_remind")
