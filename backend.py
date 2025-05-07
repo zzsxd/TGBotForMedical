@@ -265,12 +265,24 @@ class DbAct:
                                 second=0,
                                 microsecond=0
                             ) + timedelta(days=30)
+                            
                         elif repeat_type == 'custom' and custom_days:
                             # Для пользовательских дней находим следующий день из списка
-                            current_day = current_time_user.weekday() + 1
-                            custom_days_list = [int(d) for d in custom_days.split(',')]
-                            next_day = min([d for d in custom_days_list if d > current_day], default=custom_days_list[0])
-                            days_to_add = (next_day - current_day) % 7
+                            current_day = current_time_user.weekday()  # 0-6 (пн-вс)
+                            custom_days_list = [int(d)-1 for d in custom_days.split(',')]  # конвертируем в 0-6
+                            
+                            # Находим следующий день в этой неделе или первый день на следующей неделе
+                            next_day = None
+                            for day in sorted(custom_days_list):
+                                if day > current_day:
+                                    next_day = day
+                                    break
+                            
+                            if next_day is None:
+                                # Берем первый день из списка на следующей неделе
+                                days_to_add = (7 - current_day) + sorted(custom_days_list)[0]
+                            else:
+                                days_to_add = next_day - current_day
                             
                             next_time_dt = current_time_user.replace(
                                 hour=base_dt.hour,
