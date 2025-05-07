@@ -330,9 +330,9 @@ class DbAct:
             start_of_day_utc = int(start_dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
             end_of_day_utc = int(end_dt.replace(hour=23, minute=59, second=59, microsecond=999999).timestamp())
             
-            # Получаем напоминания
+            # Получаем напоминания с информацией о повторении
             reminders = self.__db.db_read(
-                'SELECT row_id, reminder, base_time FROM user_reminders '
+                'SELECT row_id, reminder, base_time, repeat_type, custom_days FROM user_reminders '
                 'WHERE user_id = ? AND base_time BETWEEN ? AND ? AND is_active = 1 '
                 'ORDER BY base_time',
                 (user_id, start_of_day_utc, end_of_day_utc)
@@ -341,16 +341,22 @@ class DbAct:
             # Конвертируем время напоминаний в локальное время пользователя
             formatted_reminders = []
             for reminder in reminders:
-                remind_id, remind_text, remind_time = reminder
+                remind_id, remind_text, remind_time, repeat_type, custom_days = reminder
                 remind_dt = datetime.fromtimestamp(remind_time, tz=tz.utc).astimezone(user_tz)
-                formatted_reminders.append((remind_id, remind_text, int(remind_dt.timestamp())))
+                formatted_reminders.append((
+                    remind_id, 
+                    remind_text, 
+                    int(remind_dt.timestamp()),
+                    repeat_type,
+                    custom_days
+                ))
             
             return formatted_reminders
         except Exception as e:
             print(f"Ошибка при обработке часового пояса: {e}")
             # В случае ошибки возвращаем результат без учета часового пояса
             return self.__db.db_read(
-                'SELECT row_id, reminder, base_time FROM user_reminders '
+                'SELECT row_id, reminder, base_time, repeat_type, custom_days FROM user_reminders '
                 'WHERE user_id = ? AND base_time BETWEEN ? AND ? AND is_active = 1 '
                 'ORDER BY base_time',
                 (user_id, start_of_day, end_of_day)
@@ -365,8 +371,12 @@ class DbAct:
     def get_user_remind_by_userid(self, user_id: int):
         if not self.user_is_existed(user_id):
             return None
-        return self.__db.db_read('SELECT row_id, reminder, base_time FROM user_reminders WHERE user_id = ? AND is_active = True', (user_id,))
-    
+        return self.__db.db_read(
+            'SELECT row_id, reminder, base_time, repeat_type, custom_days FROM user_reminders '
+            'WHERE user_id = ? AND is_active = True '
+            'ORDER BY base_time', 
+            (user_id,)
+        )
     def reminder_is_exist(self, user_id: int, remind_id: int):
         return self.__db.db_read('SELECT row_id, reminder FROM user_reminders WHERE user_id = ? AND is_active = True AND row_id = ?', (user_id, remind_id,))
     

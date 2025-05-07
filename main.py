@@ -156,51 +156,56 @@ def main():
                 "✔ Настроить часовой пояс", parse_mode="HTML", reply_markup=buttons.settings_buttons())
 
             ######## MORNING BUTTONS ########
-            elif call.data == 'reminders_today':  
-                from datetime import datetime, time         
+            elif call.data == 'reminders_today':
+                from datetime import datetime, time
+                
                 try:
-                    # Сбрасываем индекс
                     db_actions.set_user_system_key(user_id, "index", None)
-                    
-                    # Получаем текущую дату
                     today = datetime.now().date()
-                    
-                    # Получаем timestamp начала и конца дня
                     start_of_day = int(datetime.combine(today, time.min).timestamp())
                     end_of_day = int(datetime.combine(today, time.max).timestamp())
                     
-                    # Получаем напоминания на сегодня
                     reminds = db_actions.get_today_reminders(user_id, start_of_day, end_of_day)
                     
                     if not reminds:
                         bot.send_message(user_id, "📅 У вас нет напоминаний на сегодня")
                         return
                     
-                    # Формируем список
                     reminds_list = []
                     for idx, remind in enumerate(reminds, start=1):
-                        try:
-                            remind_time = datetime.fromtimestamp(remind[2])
-                            formatted_time = remind_time.strftime('%H:%M')
-                            reminds_list.append(f"{idx}. {remind[1]} - {formatted_time}")
-                        except (IndexError, TypeError) as e:
-                            print(f"Ошибка обработки напоминания {remind}: {e}")
-                            continue
+                        remind_time = datetime.fromtimestamp(remind[2])
+                        formatted_time = remind_time.strftime('%H:%M')
+                        
+                        # Получаем информацию о повторении
+                        repeat_type = remind[3]
+                        custom_days = remind[4] if len(remind) > 4 else None
+                        
+                        repeat_info = ""
+                        if repeat_type == 'no_repeat':
+                            repeat_info = "без повторения"
+                        elif repeat_type == 'daily':
+                            repeat_info = "ежедневно"
+                        elif repeat_type == 'weekly':
+                            repeat_info = "по понедельникам"
+                        elif repeat_type == 'monthly':
+                            repeat_info = "ежемесячно"
+                        elif repeat_type == 'custom' and custom_days:
+                            days_map = {'1':'пн','2':'вт','3':'ср','4':'чт','5':'пт','6':'сб','7':'вс'}
+                            days_short = [days_map[d] for d in custom_days.split(',')]
+                            repeat_info = f"по {', '.join(days_short)}"
+                        
+                        reminds_list.append(f"{idx}. {remind[1]} - {formatted_time}, {repeat_info}")
                     
-                    # Формируем дату для вывода
                     today_str = today.strftime('%d.%m.%Y')
-                    
-                    # Отправляем пользователю
                     bot.send_message(
                         user_id,
-                        f"📅 Ваши напоминания на сегодня ({today_str}):\n\n" +
-                        "\n".join(reminds_list),
-                        parse_mode="Markdown"
+                        f"📅 Напоминания на сегодня ({today_str}):\n\n" + "\n".join(reminds_list),
+                        parse_mode="HTML"
                     )
                 
                 except Exception as e:
-                    print(f"Ошибка при получении напоминаний на сегодня: {e}")
-                    bot.send_message(user_id, "❌ Произошла ошибка при получении напоминаний")
+                    print(f"Error in reminders_today: {e}")
+                    bot.send_message(user_id, "❌ Ошибка при получении сегодняшних напоминаний")
 
                     
             elif call.data == 'pressure_today':
@@ -275,36 +280,64 @@ def main():
                     bot.send_message(user_id, "❌ Нет данных!")
 
             ######## REMINDERS BUTTONS ########
-            elif call.data == "all_reminders":
+            elif call.data == 'all_reminders':
+                from datetime import datetime
                 
-                # bot send all reminders
-                db_actions.set_user_system_key(user_id, "index", None)
-                reminds = db_actions.get_user_remind_by_userid(user_id)
-                
-                if not reminds:
-                    bot.send_message(user_id, "❌ У вас нет активных напоминаний")
-                    return
-                
-                # Формируем список напоминаний
-                reminds_list = []
-                for idx, remind in enumerate(reminds, start=1):
-                    # Правильное обращение к элементам кортежа
-                    remind_id = remind[0]  # row_id
-                    remind_text = remind[1]  # текст напоминания
-                    remind_timestamp = remind[2]  # метка времени
+                try:
+                    db_actions.set_user_system_key(user_id, "index", None)
+                    reminds = db_actions.get_user_remind_by_userid(user_id)
                     
-                    # Преобразуем timestamp в читаемый формат
-                    remind_time = datetime.fromtimestamp(remind_timestamp)
-                    formatted_time = remind_time.strftime('%d.%m.%Y %H:%M')
+                    if not reminds:
+                        bot.send_message(user_id, "❌ У вас нет активных напоминаний")
+                        return
                     
-                    reminds_list.append(f"{idx}. {remind_text} - {formatted_time}")
+                    reminds_list = []
+                    for idx, remind in enumerate(reminds, start=1):
+                        remind_id = remind[0]  # row_id
+                        remind_text = remind[1]  # текст напоминания
+                        remind_timestamp = remind[2]  # метка времени
+                        repeat_type = remind[3]  # тип повторения
+                        custom_days = remind[4]  # кастомные дни (если есть)
+                        
+                        # Преобразуем timestamp в читаемый формат
+                        remind_time = datetime.fromtimestamp(remind_timestamp)
+                        formatted_time = remind_time.strftime('%d.%m.%Y %H:%M')
+                        
+                        # Формируем строку с типом повторения
+                        repeat_info = ""
+                        if repeat_type == 'no_repeat':
+                            repeat_info = "без повторения"
+                        elif repeat_type == 'daily':
+                            repeat_info = "ежедневно"
+                        elif repeat_type == 'weekly':
+                            repeat_info = "еженедельно"
+                        elif repeat_type == 'monthly':
+                            repeat_info = "ежемесячно"
+                        elif repeat_type == 'custom' and custom_days:
+                            days_map = {
+                                '1': 'понедельник',
+                                '2': 'вторник',
+                                '3': 'среда',
+                                '4': 'четверг',
+                                '5': 'пятница',
+                                '6': 'суббота',
+                                '7': 'воскресенье'
+                            }
+                            days_names = [days_map[d] for d in custom_days.split(',')]
+                            repeat_info = f"каждый {', '.join(days_names)}"
+                        
+                        reminds_list.append(f"{idx}. {remind_text} - {formatted_time}, {repeat_info}")
+                    
+                    # Отправляем пользователю список
+                    bot.send_message(
+                        user_id,
+                        "📄 Ваши активные напоминания:\n\n" + "\n".join(reminds_list),
+                        parse_mode="HTML"
+                    )
                 
-                # Отправляем пользователю список
-                bot.send_message(
-                    user_id,
-                    "📄 Ваши активные напоминания:\n" + "\n".join(reminds_list),
-                    parse_mode="HTML"
-                )
+                except Exception as e:
+                    print(f"Error in all_reminders: {e}")
+                    bot.send_message(user_id, "❌ Произошла ошибка при получении напоминаний")
 
             elif call.data == "add_reminder":
                 # user add remind
