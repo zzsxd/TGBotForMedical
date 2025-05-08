@@ -191,7 +191,8 @@ def main():
                             repeat_info = "ежемесячно"
                         elif repeat_type == 'custom' and custom_days:
                             days_map = {'1':'пн','2':'вт','3':'ср','4':'чт','5':'пт','6':'сб','7':'вс'}
-                            days_short = [days_map[d] for d in custom_days.split(',')]
+                            sorted_days = sorted(custom_days.split(','), key=int)  # Сортировка дней
+                            days_short = [days_map[d] for d in sorted_days]
                             repeat_info = f"по {', '.join(days_short)}"
                         
                         reminds_list.append(f"{idx}. {remind[1]} - {formatted_time}, {repeat_info}")
@@ -323,7 +324,9 @@ def main():
                                 '6': 'суббота',
                                 '7': 'воскресенье'
                             }
-                            days_names = [days_map[d] for d in custom_days.split(',')]
+                            # Сортируем дни по порядку (1-7) перед отображением
+                            sorted_days = sorted(custom_days.split(','), key=int)
+                            days_names = [days_map[d] for d in sorted_days]
                             repeat_info = f"каждый {', '.join(days_names)}"
                         
                         reminds_list.append(f"{idx}. {remind_text} - {formatted_time}, {repeat_info}")
