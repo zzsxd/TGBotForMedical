@@ -80,7 +80,7 @@ def main():
                 # ad to db datas about questions
                 questions = db_actions.get_user_question(user_id)
                 count = len(questions) if questions else 0
-                bot.send_message(user_id, f"❗️ Вы добавили {count} вопроса(ов)", reply_markup=buttons.end_question_two_buttons())
+                bot.send_message(user_id, f"❗️ Всего: {count} вопроса(ов)", reply_markup=buttons.end_question_two_buttons())
             
             ######## USER IS REG START ########
             elif call.data == 'morning':
@@ -348,6 +348,7 @@ def main():
                 db_actions.set_user_system_key(user_id, "index", 18)
 
             elif call.data == "delete_reminder":
+                from datetime import datetime
                 # user delete remind
                 db_actions.set_user_system_key(user_id, "index", None)
                 reminds = db_actions.get_user_remind_by_userid(user_id)
