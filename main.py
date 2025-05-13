@@ -81,6 +81,13 @@ def main():
                 questions = db_actions.get_user_question(user_id)
                 count = len(questions) if questions else 0
                 bot.send_message(user_id, f"❗️ Всего: {count} вопроса(ов)", reply_markup=buttons.end_question_two_buttons())
+
+            elif call.data == "end_condition":
+                db_actions.set_user_system_key(user_id, "index", None)
+                # ad to db datas about questions
+                questions = db_actions.get_user_bad_condition(user_id)
+                count = len(questions) if questions else 0
+                bot.send_message(user_id, f"❗️ Всего: {count} вопроса(ов)")
             
             ######## USER IS REG START ########
             
@@ -143,13 +150,6 @@ def main():
 
             ######## MORNING BUTTONS ########
 
-                    
-            # elif call.data == 'weight_today':
-            #     # bot send message with request to add data about weight
-            #     db_actions.set_user_system_key(user_id, "index", None)
-            #     bot.send_message(user_id, "<b>💪 Отправьте ваш вес</b>\n\n" \
-            #     "❕ Пример: 75", parse_mode='HTML')
-            #     db_actions.set_user_system_key(user_id, "index", 12)
         
             ######## EVENING BUTTONS ########
             elif call.data == 'plans_tomorrow':
@@ -166,7 +166,7 @@ def main():
                 questions = db_actions.get_user_question(user_id)
                 
                 if not questions:
-                    bot.send_message(user_id, "❌ У вас нет вопросов")
+                    bot.send_message(user_id, "❌ У вас нет вопросов", reply_markup=buttons.add_question_btns())
                     return
                 db_actions.set_user_system_key(user_id, "pending_questions", 
                                             [q[0] for q in questions])  # Сохраняем IDs вопросов
@@ -180,6 +180,27 @@ def main():
                     parse_mode='HTML'
                 )
                 db_actions.set_user_system_key(user_id, "index", 21)
+
+            elif call.data == 'answer_on_bad_condition':
+                # bot send questions, user need answer
+                db_actions.set_user_system_key(user_id, "index", None)
+                questions = db_actions.get_user_bad_condition(user_id)
+                
+                if not questions:
+                    bot.send_message(user_id, "❌ У вас нет вопросов", reply_markup=buttons.add_bad_condition_btns())
+                    return
+                db_actions.set_user_system_key(user_id, "pending_bad_condition", 
+                                            [q[0] for q in questions])  # Сохраняем IDs вопросов
+                db_actions.set_user_system_key(user_id, "current_bad_condition_index", 0)
+                first_question = questions[0][1]  # questions[0][1] - текст вопроса
+                bot.send_message(
+                    user_id,
+                    "<b>📌 Ответьте на вопросы:</b>\n\n"
+                    f"1/{len(questions)}. {first_question}\n\n"
+                    "Введите ваш ответ:",
+                    parse_mode='HTML'
+                )
+                db_actions.set_user_system_key(user_id, "index", 41)
             
             ######## REPORTS BUTTONS ########
             elif call.data == "pressure_report":
@@ -381,6 +402,17 @@ def main():
                 else:
                     bot.send_message(user_id, "📌 Задайте вопрос")
                     db_actions.set_user_system_key(user_id, "index", 1)
+            
+            elif call.data == "add_bad_condition":
+                db_actions.set_user_system_key(user_id, "index", None)
+                questions = db_actions.get_user_bad_condition(user_id)
+                count = len(questions) if questions else 0
+                if count >= 10:
+                    bot.send_message(user_id, "<b>❌ У вас добавлено максимальное количество вопросов!</b>", parse_mode='HTML')
+                else:
+                    bot.send_message(user_id, "📌 Задайте вопрос")
+                    db_actions.set_user_system_key(user_id, "index", 26)
+
             elif call.data == "delete_questions":
                 db_actions.set_user_system_key(user_id, "index", None)
                 questions = db_actions.get_user_question(user_id)
@@ -400,6 +432,28 @@ def main():
                     parse_mode='HTML'
                 )
                 db_actions.set_user_system_key(user_id, "index", 11)
+
+            elif call.data == "delete_bad_condition":
+                db_actions.set_user_system_key(user_id, "index", None)
+                questions = db_actions.get_user_bad_condition(user_id)
+                if not questions:
+                    bot.send_message(user_id, '❌ У вас нет вопросов!\n\n'
+                    '📌 Нажмите на кнопку ниже, чтобы добавить их', reply_markup=buttons.add_bad_condition_btns())
+                    return
+                questions_list = []
+                for idx, (q_id, q_text, *_) in enumerate(questions, start=1):
+                    questions_list.append(f"{idx}. {q_text} [ID: {q_id}]")
+                questions_text = "\n".join(questions_list)
+                bot.send_message(
+                    user_id,
+                    "📋 Список ваших вопросов:\n\n" +
+                    "\n".join(questions_list) +
+                    "\n\nВведите <b>ID вопроса</b> для удаления:",
+                    parse_mode='HTML'
+                )
+                db_actions.set_user_system_key(user_id, "index", 40)
+
+
             elif call.data == "edit_question":
                 db_actions.set_user_system_key(user_id, "index", None)
                 questions = db_actions.get_user_question(user_id)
@@ -419,6 +473,26 @@ def main():
                     parse_mode='HTML'
                 )
                 db_actions.set_user_system_key(user_id, "index", 24)
+
+            elif call.data == "edit_bad_condition":
+                db_actions.set_user_system_key(user_id, "index", None)
+                questions = db_actions.get_user_bad_condition(user_id)
+                if not questions:
+                    bot.send_message(user_id, '❌ У вас нет вопросов!\n\n'
+                    '📌 Нажмите на кнопку ниже, чтобы добавить их', reply_markup=buttons.add_question_btns())
+                    return
+                questions_list = []
+                for idx, (q_id, q_text, *_) in enumerate(questions, start=1):
+                    questions_list.append(f"{idx}. {q_text} [ID: {q_id}]")
+                questions_text = "\n".join(questions_list)
+                bot.send_message(
+                    user_id,
+                    "📋 Список ваших вопросов:\n\n" +
+                    "\n".join(questions_list) +
+                    "\n\nВведите <b>ID вопроса</b> для редактирования:",
+                    parse_mode='HTML'
+                )
+                db_actions.set_user_system_key(user_id, "index", 38)
             elif call.data == "pressure_settings":
                 # pressure settings
                 db_actions.set_user_system_key(user_id, "index", None)
@@ -445,6 +519,10 @@ def main():
             elif call.data == "question_settings":
                 bot.send_message(user_id, "⚙️ Настройки вопросов\n\n"
                 "Выберите пункт ниже!", reply_markup=buttons.question_settings_buttons())
+
+            elif call.data == "bad_condition_settings":
+                bot.send_message(user_id, "⚙️ Настройки хренового состояния\n\n"
+                "Выберите пункт ниже!", reply_markup=buttons.bad_condition_settings_buttons())
 
             elif call.data == "reminder_settings":
                 bot.send_message(user_id, "⚙️ Настройки напоминаний\n\n"
@@ -742,6 +820,92 @@ def main():
                     db_actions.update_user_question(user_input, question_id, user_id)
                     bot.send_message(user_id, "Вопрос обновлен!")
                     db_actions.set_user_system_key(user_id, "index", None)
+            
+            elif code != 37 and code in range(26, 37):
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    questions = db_actions.get_user_bad_condition(user_id)
+                    count = len(questions) if questions else 0
+                    if count >= 10:
+                        bot.send_message(user_id, "<b>❌ У вас добавлено максимальное количество вопросов!</b>", parse_mode='HTML')
+                        db_actions.set_user_system_key(user_id, "index", None)
+                    else:
+                        db_actions.write_user_bad_condition(user_id, code, user_input)
+                        code += 1
+                        db_actions.set_user_system_key(user_id, "index", code)
+                        bot.send_message(user_id, f"Задайте вопрос №{code}", reply_markup=buttons.end_bad_condition_buttons())
+
+            elif code == 38:
+                try:
+                    if int(user_input):
+                        db_actions.set_user_system_key(user_id, "question_id", user_input)
+                        bot.send_message(user_id, "Введите текст вопроса")
+                        db_actions.set_user_system_key(user_id, "index", 39)
+                    else:
+                        bot.send_message(user_id, "❌ Ошибка")
+                except Exception as e:
+                    print(f"Error: {e}")
+
+            elif code == 39:
+                question_id = db_actions.get_user_system_key(user_id, "question_id")
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    db_actions.update_user_bad_condition(user_input, question_id, user_id)
+                    bot.send_message(user_id, "Вопрос обновлен!")
+                    db_actions.set_user_system_key(user_id, "index", None)
+
+            elif code == 40:
+                # code for delete bad condition
+                try:
+                    if user_input.strip() == "0":
+                        bot.send_message(user_id, "✅ Удаление отменено")
+                        db_actions.set_user_system_key(user_id, "index", None)
+                    question_id = int(user_input.strip())
+                    if not question_id:
+                        bot.send_message(user_id, "❌ Ошибка! Введите ID вопроса!")
+                        return
+                    else:
+                        check_question = db_actions.question_is_exist_bad_condition(user_id, question_id)
+                        if not check_question:
+                            bot.send_message(user_id, "❌ Ошибка! Вопрос не найден!")
+                            return
+                        else:
+                            db_actions.delete_user_bad_condition(question_id, user_id)
+                            bot.send_message(user_id, '✅ Вопрос удален!')
+                            db_actions.set_user_system_key(user_id, "index", None)
+                except Exception as e:
+                    print(e)
+            
+            elif code == 41:
+                question_ids = db_actions.get_user_system_key(user_id, "pending_bad_condition")
+                current_idx = db_actions.get_user_system_key(user_id, "current_bad_condition_index")
+                question_id = question_ids[current_idx]
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    db_actions.add_user_answer_bad_condition(user_id, question_id, user_input)
+                    if current_idx + 1 < len(question_ids):
+                        next_question = db_actions.get_question_by_id_bad_condition(question_ids[current_idx + 1])
+                        db_actions.set_user_system_key(user_id, "current_bad_condition_index", current_idx + 1)
+                        bot.send_message(
+                            user_id,
+                            f"✅ Ответ сохранен!\n\n"
+                            f"<b>Следующий вопрос:</b>\n\n"
+                            f"{current_idx + 2}/{len(question_ids)}. {next_question[1]}\n\n"
+                            "Введите ваш ответ:",
+                            parse_mode='HTML'
+                        )
+                    else:
+                        bot.send_message(user_id, "✅ Вы ответили на все вопросы! Спасибо!")
+                        db_actions.set_user_system_key(user_id, "index", None)
 
     def check_reminders():
         while True:
