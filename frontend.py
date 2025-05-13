@@ -19,9 +19,15 @@ class Bot_inline_btns:
         self.__markup.add(one)
         return self.__markup
     
+    def end_bad_condition_buttons(self):
+        one = types.InlineKeyboardButton("✅ Закончить", callback_data="end_condition")
+
+        self.__markup.add(one)
+        return self.__markup
+    
     def start_register_buttons(self):
         three = types.InlineKeyboardButton("Давление 💊", callback_data="pressure")
-        one = types.InlineKeyboardButton("Хреновое состояние ❤️", callback_data="answer_on_questions")
+        one = types.InlineKeyboardButton("Хреновое состояние ❤️", callback_data="answer_on_bad_condition")
         two = types.InlineKeyboardButton("Ответить на вопросы 🤔", callback_data="answer_on_questions")
         four = types.InlineKeyboardButton("Отчеты 📊", callback_data="reports")
         five = types.InlineKeyboardButton("Напоминания 📅", callback_data="all_reminders")
@@ -30,25 +36,8 @@ class Bot_inline_btns:
         self.__markup.add(three, one, two,  five, six, four)
         return self.__markup
     
-    # def morning_buttons(self):
-    #     one = types.InlineKeyboardButton("📅 Напоминания", callback_data="reminders_today")
-    #     two = types.InlineKeyboardButton("💊 Давление", callback_data="pressure_today")
-    #     three = types.InlineKeyboardButton("💪 Вес", callback_data="weight_today")
-
-    #     self.__markup.add(one, two, three)
-    #     return self.__markup
-    
-    # def evening_buttons(self):
-    #     one = types.InlineKeyboardButton("📅 Планы", callback_data="plans_tomorrow")
-    #     two = types.InlineKeyboardButton("💊 Давление", callback_data="pressure_today")
-    #     three = types.InlineKeyboardButton("📄 Ответить на вопросы", callback_data="answer_on_questions")
-        
-    #     self.__markup.add(one, two, three)
-    #     return self.__markup
-    
     def reports_buttons(self):
         one = types.InlineKeyboardButton("Отчет по давлению 💊", callback_data="pressure_report")
-        two = types.InlineKeyboardButton("Отчет по весу 💪", callback_data="weight_report")
         three = types.InlineKeyboardButton("Отчет по вопросам 📄", callback_data="questions_report")
 
         self.__markup.add(one, three)
@@ -88,13 +77,12 @@ class Bot_inline_btns:
 
 
     def settings_buttons(self):
-        # one = types.InlineKeyboardButton("➕ Добавить вопросы", callback_data="two_add_questions")
-        # two = types.InlineKeyboardButton("🗑 Удалить вопросы", callback_data="delete_questions")
-        one = types.InlineKeyboardButton("❤️ Хреновое состояние", callback_data="question_settings")
+        one = types.InlineKeyboardButton("❤️ Хреновое состояние", callback_data="bad_condition_settings")
+        four = types.InlineKeyboardButton("🤔 Вопросы", callback_data="question_settings")
         two = types.InlineKeyboardButton("📅 Напоминания", callback_data="reminder_settings")
         three = types.InlineKeyboardButton("💊 Давление", callback_data="pressure_settings")
 
-        self.__markup.add(one, two, three)
+        self.__markup.add(one, four, two, three)
         return self.__markup
     
     def question_settings_buttons(self):
@@ -104,10 +92,24 @@ class Bot_inline_btns:
 
         self.__markup.add(one, two, three)
         return self.__markup
+    
+    def bad_condition_settings_buttons(self):
+        one = types.InlineKeyboardButton("➕ Добавить", callback_data="add_bad_condition")
+        two = types.InlineKeyboardButton("🗑 Удалить", callback_data="delete_bad_condition")
+        three = types.InlineKeyboardButton("✏️ Редактировать", callback_data="edit_bad_condition")
+
+        self.__markup.add(one, two, three)
+        return self.__markup
 
 
     def add_question_btns(self):
         one = types.InlineKeyboardButton("➕ Добавить вопросы", callback_data='two_add_questions')
+
+        self.__markup.add(one)
+        return self.__markup
+    
+    def add_bad_condition_btns(self):
+        one = types.InlineKeyboardButton("➕ Добавить вопросы", callback_data='add_bad_condition')
 
         self.__markup.add(one)
         return self.__markup

@@ -32,6 +32,8 @@ class DbAct:
                                                                         "time_remind": None,
                                                                         "pending_questions": None,
                                                                         "current_question_index": None,
+                                                                        "pending_bad_condition": None,
+                                                                        "current_bad_condition_index": None,
                                                                         "question_id": None}), is_admin))
             
 
@@ -141,6 +143,72 @@ class DbAct:
     
     def question_is_exist(self, user_id: int, question_id: int):
         return self.__db.db_read('SELECT question FROM user_questions WHERE user_id = ? AND question_id = ? AND question_status = ?', (user_id, question_id, True))
+    
+
+    def write_user_bad_condition(self, user_id: int, question_id: int, question: str):
+        # Получаем максимальный ID вопроса для данного пользователя
+        max_id = self.__db.db_read(
+            'SELECT MAX(question_id) FROM user_bad_condition WHERE user_id = ?',
+            (user_id,)
+        )[0][0]
+        
+        # Если это первый вопрос, устанавливаем ID = 1
+        if max_id is None:
+            new_id = 1
+        else:
+            # Иначе берем следующий ID
+            new_id = max_id + 1
+        
+        # Вставляем вопрос с новым ID
+        self.__db.db_write(
+            'INSERT INTO user_bad_condition (user_id, question_id, question, question_status) VALUES (?, ?, ?, True)',
+            (user_id, new_id, question)
+        )
+
+    def get_user_bad_condition(self, user_id: int):
+        if not self.user_is_existed(user_id):
+            return None
+        return self.__db.db_read('SELECT question_id, question FROM user_bad_condition WHERE user_id = ? and question_status = True', (user_id,))
+    
+    def delete_user_bad_condition(self, question_id: int, user_id: int):
+        if not self.user_is_existed(user_id):
+            return None
+        self.__db.db_write('UPDATE user_bad_condition SET question_status = ? WHERE question_id = ? and user_id = ?', (False, question_id, user_id))
+
+    def update_user_bad_condition(self, question_text: str, question_id: int, user_id: int):
+        if not self.user_is_existed(user_id):
+            return None
+        self.__db.db_write('UPDATE user_bad_condition SET question = ? WHERE question_id = ? and user_id = ? and question_status = True', (question_text, question_id, user_id))
+    
+    def add_user_answer_bad_condition(self, user_id, question_id, answer):
+        # Получаем текущий ответ
+        current_answer = self.__db.db_read('''
+            SELECT answer FROM user_bad_condition 
+            WHERE row_id = ? AND user_id = ?
+        ''', (question_id, user_id))
+        
+        # Формируем новый ответ
+        new_answer = answer
+        if current_answer and current_answer[0][0]:
+            new_answer = f"{current_answer[0][0]}|{answer}"
+        
+        # Обновляем поле
+        self.__db.db_write('''
+            UPDATE user_bad_condition 
+            SET answer = ?, created_at = CURRENT_TIMESTAMP 
+            WHERE row_id = ? AND user_id = ?
+        ''', (new_answer, question_id, user_id))
+
+    def get_question_by_id_bad_condition(self, question_id):
+        result = self.__db.db_read(
+            'SELECT row_id, question FROM user_bad_condition '
+            'WHERE row_id = ?',
+            (question_id,)
+        )
+        return result[0] if result else None
+    
+    def question_is_exist_bad_condition(self, user_id: int, question_id: int):
+        return self.__db.db_read('SELECT question FROM user_bad_condition WHERE user_id = ? AND question_id = ? AND question_status = ?', (user_id, question_id, True))
 
     def add_user_weight(self, user_id: int, weight: int):
         if not self.user_is_existed(user_id):

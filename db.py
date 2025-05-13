@@ -41,6 +41,18 @@ class DB:
                 )
             ''')
             self.__cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_bad_condition(
+                row_id INTEGER primary key autoincrement not null,
+                user_id INTEGER NOT NULL,
+                question_id INTEGER,
+                question_status BOOL,
+                question TEXT,
+                answer TEXT,
+                created_at TIMESTAMP DEFAULT NULL,
+                UNIQUE(row_id)
+                )
+            ''')
+            self.__cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_datas(
                 row_id INTEGER primary key autoincrement NOT NULL,
                 user_id INTEGER NOT NULL,
