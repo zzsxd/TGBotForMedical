@@ -83,15 +83,6 @@ def main():
                 bot.send_message(user_id, f"❗️ Всего: {count} вопроса(ов)", reply_markup=buttons.end_question_two_buttons())
             
             ######## USER IS REG START ########
-            elif call.data == 'morning':
-                db_actions.set_user_system_key(user_id, "index", None)
-                bot.send_message(user_id, "<b>🌅 Доброе утро!</b> \n\n"
-                f"😇 Сегодня отличное утро - хороший повод, чтобы позаботиться о себе.", parse_mode='HTML', reply_markup=buttons.morning_buttons())
-            
-            elif call.data == 'evening':
-                db_actions.set_user_system_key(user_id, "index", None)
-                bot.send_message(user_id, "<b>🌇 Добрый вечер!</b> \n\n"
-                "🤗 Давай подведем итоги дня и подготовимся к завтра!", parse_mode='HTML', reply_markup=buttons.evening_buttons())
             
             elif call.data == 'pressure':
                 db_actions.set_user_system_key(user_id, "index", None)
@@ -104,11 +95,6 @@ def main():
                 db_actions.set_user_system_key(user_id, "index", None)
                 bot.send_message(user_id, "<b>📊 Отчеты:</b>\n\n" \
                 "🧐 Выберите нужный пункт и получите сведения!", parse_mode="HTML", reply_markup=buttons.reports_buttons())
-            
-            elif call.data == 'reminders':
-                db_actions.set_user_system_key(user_id, "index", None)
-                bot.send_message(user_id, "<b>Напоминания:</b>\n\n" \
-                "📄 Выберите, за какой период получить напоминания?", parse_mode="HTML", reply_markup=buttons.reminders_buttons())
 
             elif call.data == 'timezone_settings':
                 db_actions.set_user_system_key(user_id, "index", None)
@@ -156,70 +142,14 @@ def main():
                 "✔ Настроить часовой пояс", parse_mode="HTML", reply_markup=buttons.settings_buttons())
 
             ######## MORNING BUTTONS ########
-            elif call.data == 'reminders_today':
-                from datetime import datetime, time
-                
-                try:
-                    db_actions.set_user_system_key(user_id, "index", None)
-                    today = datetime.now().date()
-                    start_of_day = int(datetime.combine(today, time.min).timestamp())
-                    end_of_day = int(datetime.combine(today, time.max).timestamp())
-                    
-                    reminds = db_actions.get_today_reminders(user_id, start_of_day, end_of_day)
-                    
-                    if not reminds:
-                        bot.send_message(user_id, "📅 У вас нет напоминаний на сегодня")
-                        return
-                    
-                    reminds_list = []
-                    for idx, remind in enumerate(reminds, start=1):
-                        remind_time = datetime.fromtimestamp(remind[2])
-                        formatted_time = remind_time.strftime('%H:%M')
-                        
-                        # Получаем информацию о повторении
-                        repeat_type = remind[3]
-                        custom_days = remind[4] if len(remind) > 4 else None
-                        
-                        repeat_info = ""
-                        if repeat_type == 'no_repeat':
-                            repeat_info = "без повторения"
-                        elif repeat_type == 'daily':
-                            repeat_info = "ежедневно"
-                        elif repeat_type == 'weekly':
-                            repeat_info = "по понедельникам"
-                        elif repeat_type == 'monthly':
-                            repeat_info = "ежемесячно"
-                        elif repeat_type == 'custom' and custom_days:
-                            days_map = {'1':'пн','2':'вт','3':'ср','4':'чт','5':'пт','6':'сб','7':'вс'}
-                            sorted_days = sorted(custom_days.split(','), key=int)  # Сортировка дней
-                            days_short = [days_map[d] for d in sorted_days]
-                            repeat_info = f"по {', '.join(days_short)}"
-                        
-                        reminds_list.append(f"{idx}. {remind[1]} - {formatted_time}, {repeat_info}")
-                    
-                    today_str = today.strftime('%d.%m.%Y')
-                    bot.send_message(
-                        user_id,
-                        f"📅 Напоминания на сегодня ({today_str}):\n\n" + "\n".join(reminds_list),
-                        parse_mode="HTML"
-                    )
-                
-                except Exception as e:
-                    print(f"Error in reminders_today: {e}")
-                    bot.send_message(user_id, "❌ Ошибка при получении сегодняшних напоминаний")
 
                     
-            elif call.data == 'pressure_today':
-                db_actions.set_user_system_key(user_id, "index", None)
-                bot.send_message(user_id, "<b>📌 Отправьте ваше давление сейчас</b>\n\n" \
-                "❕ Пример: 140/90", parse_mode='HTML')
-                db_actions.set_user_system_key(user_id, "index", 15)
-            elif call.data == 'weight_today':
-                # bot send message with request to add data about weight
-                db_actions.set_user_system_key(user_id, "index", None)
-                bot.send_message(user_id, "<b>💪 Отправьте ваш вес</b>\n\n" \
-                "❕ Пример: 75", parse_mode='HTML')
-                db_actions.set_user_system_key(user_id, "index", 12)
+            # elif call.data == 'weight_today':
+            #     # bot send message with request to add data about weight
+            #     db_actions.set_user_system_key(user_id, "index", None)
+            #     bot.send_message(user_id, "<b>💪 Отправьте ваш вес</b>\n\n" \
+            #     "❕ Пример: 75", parse_mode='HTML')
+            #     db_actions.set_user_system_key(user_id, "index", 12)
         
             ######## EVENING BUTTONS ########
             elif call.data == 'plans_tomorrow':
@@ -470,6 +400,25 @@ def main():
                     parse_mode='HTML'
                 )
                 db_actions.set_user_system_key(user_id, "index", 11)
+            elif call.data == "edit_question":
+                db_actions.set_user_system_key(user_id, "index", None)
+                questions = db_actions.get_user_question(user_id)
+                if not questions:
+                    bot.send_message(user_id, '❌ У вас нет вопросов!\n\n'
+                    '📌 Нажмите на кнопку ниже, чтобы добавить их', reply_markup=buttons.add_question_btns())
+                    return
+                questions_list = []
+                for idx, (q_id, q_text, *_) in enumerate(questions, start=1):
+                    questions_list.append(f"{idx}. {q_text} [ID: {q_id}]")
+                questions_text = "\n".join(questions_list)
+                bot.send_message(
+                    user_id,
+                    "📋 Список ваших вопросов:\n\n" +
+                    "\n".join(questions_list) +
+                    "\n\nВведите <b>ID вопроса</b> для редактирования:",
+                    parse_mode='HTML'
+                )
+                db_actions.set_user_system_key(user_id, "index", 24)
             elif call.data == "pressure_settings":
                 # pressure settings
                 db_actions.set_user_system_key(user_id, "index", None)
@@ -492,6 +441,14 @@ def main():
                 db_actions.set_user_system_key(user_id, "index", None)
                 bot.send_message(user_id, '<b>📌 Укажите таблетки, которые следует принимать при высоком давлении!</b>\n\n', parse_mode='HTML')
                 db_actions.set_user_system_key(user_id, "index", 17)
+
+            elif call.data == "question_settings":
+                bot.send_message(user_id, "⚙️ Настройки вопросов\n\n"
+                "Выберите пункт ниже!", reply_markup=buttons.question_settings_buttons())
+
+            elif call.data == "reminder_settings":
+                bot.send_message(user_id, "⚙️ Настройки напоминаний\n\n"
+                "Выберите пункт ниже!", reply_markup=buttons.reminders_buttons())
 
 
     @bot.message_handler(content_types=['text'])
@@ -764,6 +721,27 @@ def main():
                     bot.send_message(user_id, "❌ Ошибка при обработке дней")
                 db_actions.set_user_system_key(user_id, "index", None)
 
+            elif code == 24:
+                try:
+                    if int(user_input):
+                        db_actions.set_user_system_key(user_id, "question_id", user_input)
+                        bot.send_message(user_id, "Введите текст вопроса")
+                        db_actions.set_user_system_key(user_id, "index", 25)
+                    else:
+                        bot.send_message(user_id, "❌ Ошибка")
+                except Exception as e:
+                    print(f"Error: {e}")
+
+            elif code == 25:
+                question_id = db_actions.get_user_system_key(user_id, "question_id")
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    db_actions.update_user_question(user_input, question_id, user_id)
+                    bot.send_message(user_id, "Вопрос обновлен!")
+                    db_actions.set_user_system_key(user_id, "index", None)
 
     def check_reminders():
         while True:
