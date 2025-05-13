@@ -31,7 +31,8 @@ class DbAct:
                                                                         "remind": None,
                                                                         "time_remind": None,
                                                                         "pending_questions": None,
-                                                                        "current_question_index": None}), is_admin))
+                                                                        "current_question_index": None,
+                                                                        "question_id": None}), is_admin))
             
 
     ##### СТАНДАРТНЫЕ КОМАНДЫ #####
@@ -105,6 +106,11 @@ class DbAct:
         if not self.user_is_existed(user_id):
             return None
         self.__db.db_write('UPDATE user_questions SET question_status = ? WHERE question_id = ? and user_id = ?', (False, question_id, user_id))
+
+    def update_user_question(self, question_text: str, question_id: int, user_id: int):
+        if not self.user_is_existed(user_id):
+            return None
+        self.__db.db_write('UPDATE user_questions SET question = ? WHERE question_id = ? and user_id = ? and question_status = True', (question_text, question_id, user_id))
     
     def add_user_answer(self, user_id, question_id, answer):
         # Получаем текущий ответ
@@ -311,56 +317,6 @@ class DbAct:
         
         return reminders
     
-    def get_today_reminders(self, user_id, start_of_day, end_of_day):
-        # Получаем часовой пояс пользователя
-        user_timezone = self.get_user_timezone(user_id)
-        if not user_timezone:
-            user_timezone = 'UTC'
-            
-        try:
-            import pytz
-            from datetime import datetime, timezone as tz
-            user_tz = pytz.timezone(user_timezone)
-            
-            # Конвертируем временные метки в локальное время пользователя
-            start_dt = datetime.fromtimestamp(start_of_day, tz=tz.utc).astimezone(user_tz)
-            end_dt = datetime.fromtimestamp(end_of_day, tz=tz.utc).astimezone(user_tz)
-            
-            # Получаем начало и конец дня в UTC
-            start_of_day_utc = int(start_dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-            end_of_day_utc = int(end_dt.replace(hour=23, minute=59, second=59, microsecond=999999).timestamp())
-            
-            # Получаем напоминания с информацией о повторении
-            reminders = self.__db.db_read(
-                'SELECT row_id, reminder, base_time, repeat_type, custom_days FROM user_reminders '
-                'WHERE user_id = ? AND base_time BETWEEN ? AND ? AND is_active = 1 '
-                'ORDER BY base_time',
-                (user_id, start_of_day_utc, end_of_day_utc)
-            )
-            
-            # Конвертируем время напоминаний в локальное время пользователя
-            formatted_reminders = []
-            for reminder in reminders:
-                remind_id, remind_text, remind_time, repeat_type, custom_days = reminder
-                remind_dt = datetime.fromtimestamp(remind_time, tz=tz.utc).astimezone(user_tz)
-                formatted_reminders.append((
-                    remind_id, 
-                    remind_text, 
-                    int(remind_dt.timestamp()),
-                    repeat_type,
-                    custom_days
-                ))
-            
-            return formatted_reminders
-        except Exception as e:
-            print(f"Ошибка при обработке часового пояса: {e}")
-            # В случае ошибки возвращаем результат без учета часового пояса
-            return self.__db.db_read(
-                'SELECT row_id, reminder, base_time, repeat_type, custom_days FROM user_reminders '
-                'WHERE user_id = ? AND base_time BETWEEN ? AND ? AND is_active = 1 '
-                'ORDER BY base_time',
-                (user_id, start_of_day, end_of_day)
-            )
 
     def mark_reminder_as_completed(self, reminder_id: int):
         self.__db.db_write('UPDATE user_reminders SET is_active = False WHERE row_id = ?', (reminder_id,))
