@@ -1,0 +1,30 @@
+altgraph @ file:///AppleInternal/Library/BuildRoots/bcce998f-ff34-11ef-9d34-f2a857e00a32/Library/Caches/com.apple.xbs/Sources/python3/altgraph-0.17.2-py2.py3-none-any.whl
+asgiref==3.8.1
+certifi==2025.1.31
+charset-normalizer==3.4.1
+Django==4.2.18
+django-cors-headers==4.7.0
+django-filter==25.1
+djangorestframework==3.15.2
+djangorestframework_simplejwt==5.4.0
+et_xmlfile==2.0.0
+future @ file:///AppleInternal/Library/BuildRoots/bcce998f-ff34-11ef-9d34-f2a857e00a32/Library/Caches/com.apple.xbs/Sources/python3/future-0.18.2-py3-none-any.whl
+idna==3.10
+macholib @ file:///AppleInternal/Library/BuildRoots/bcce998f-ff34-11ef-9d34-f2a857e00a32/Library/Caches/com.apple.xbs/Sources/python3/macholib-1.15.2-py2.py3-none-any.whl
+mysqlclient==2.2.7
+numpy==2.0.2
+openpyxl==3.1.5
+pandas==2.2.3
+pillow==11.1.0
+PyJWT==2.10.1
+pyTelegramBotAPI==4.26.0
+python-dateutil==2.9.0.post0
+pytz==2025.2
+requests==2.32.3
+rest-framework-simplejwt==0.0.2
+six @ file:///AppleInternal/Library/BuildRoots/bcce998f-ff34-11ef-9d34-f2a857e00a32/Library/Caches/com.apple.xbs/Sources/python3/six-1.15.0-py2.py3-none-any.whl
+sqlparse==0.5.3
+telebot==0.0.5
+typing_extensions==4.12.2
+tzdata==2025.2
+urllib3==1.26.20
