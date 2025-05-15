@@ -5,7 +5,6 @@ import re
 import json
 import threading
 import platform
-from datetime import datetime
 from threading import Lock
 from config_parser import ConfigParser
 from frontend import Bot_inline_btns
@@ -80,7 +79,7 @@ def main():
                 # ad to db datas about questions
                 questions = db_actions.get_user_question(user_id)
                 count = len(questions) if questions else 0
-                bot.send_message(user_id, f"❗️ Всего: {count} вопроса(ов)", reply_markup=buttons.end_question_two_buttons())
+                bot.send_message(user_id, f"❗️ Всего: {count} вопроса(ов)")
 
             elif call.data == "end_condition":
                 db_actions.set_user_system_key(user_id, "index", None)
@@ -148,17 +147,8 @@ def main():
                 "✔ Настроить таблетки\n" \
                 "✔ Настроить часовой пояс", parse_mode="HTML", reply_markup=buttons.settings_buttons())
 
-            ######## MORNING BUTTONS ########
-
         
             ######## EVENING BUTTONS ########
-            elif call.data == 'plans_tomorrow':
-                # bot send message with request to add data about plans at tomorrow
-                db_actions.set_user_system_key(user_id, "index", None)
-                bot.send_message(user_id, "<b>Давайте составим план на завтра!</b>\n\n" \
-                "Напишите, о чем мне напомнить завтра?\n" \
-                "(в формате одного сообщения)", parse_mode='HTML')
-                db_actions.set_user_system_key(user_id, "index", 18)
 
             elif call.data == 'answer_on_questions':
                 # bot send questions, user need answer
@@ -212,20 +202,21 @@ def main():
                     os.remove(config.get_config()['xlsx_path'])
                 except Exception:
                     bot.send_message(user_id, "❌ Нет данных!")
-            elif call.data == "weight_report":
-                #bot send xlsx with weight
-                db_actions.set_user_system_key(user_id, "index", None)
-                try:
-                    db_actions.get_weight_report(user_id)
-                    bot.send_document(user_id, open(config.get_config()['xlsx_path'], 'rb'))
-                    os.remove(config.get_config()['xlsx_path'])
-                except Exception:
-                    bot.send_message(user_id, "❌ Нет данных!")
             elif call.data == "questions_report":
                 # bot send xlsx with q/a
                 db_actions.set_user_system_key(user_id, "index", None)
                 try:
                     db_actions.get_question_answer_report(user_id)
+                    bot.send_document(user_id, open(config.get_config()['xlsx_path'], 'rb'))
+                    os.remove(config.get_config()['xlsx_path'])
+                except Exception:
+                    bot.send_message(user_id, "❌ Нет данных!")
+
+            elif call.data == "bad_condition_report":
+                # bot send xlsx with q/a
+                db_actions.set_user_system_key(user_id, "index", None)
+                try:
+                    db_actions.get_bad_condition_report(user_id)
                     bot.send_document(user_id, open(config.get_config()['xlsx_path'], 'rb'))
                     os.remove(config.get_config()['xlsx_path'])
                 except Exception:
@@ -301,35 +292,63 @@ def main():
                 "(в формате одного сообщения)", parse_mode='HTML')
                 db_actions.set_user_system_key(user_id, "index", 18)
 
+                
             elif call.data == "delete_reminder":
                 from datetime import datetime
                 # user delete remind
                 db_actions.set_user_system_key(user_id, "index", None)
                 reminds = db_actions.get_user_remind_by_userid(user_id)
-                
+                    
                 if not reminds:
                     bot.send_message(user_id, "❌ У вас нет активных напоминаний")
                     return
                 
-                # Формируем список напоминаний с нумерацией
+                # Сортируем напоминания по ID (первый элемент в кортеже)
+                reminds_sorted = sorted(reminds, key=lambda x: x[0])
+                
                 reminds_list = []
-                for idx, remind in enumerate(reminds, start=1):
-                    remind_id = remind[0]  # ID напоминания
-                    remind_text = remind[1]  # Текст напоминания
-                    remind_timestamp = remind[2]  # Время в timestamp
+                for idx, remind in enumerate(reminds_sorted, start=1):
+                    remind_id = remind[0]  # row_id
+                    remind_text = remind[1]  # текст напоминания
+                    remind_timestamp = remind[2]  # метка времени
+                    repeat_type = remind[3]  # тип повторения
+                    custom_days = remind[4]  # кастомные дни (если есть)
                     
-                    # Форматируем время
+                    # Преобразуем timestamp в читаемый формат
                     remind_time = datetime.fromtimestamp(remind_timestamp)
                     formatted_time = remind_time.strftime('%d.%m.%Y %H:%M')
                     
-                    reminds_list.append(
-                        f"{idx}. {remind_text} - {formatted_time} [ID: {remind_id}]"
-                    )
-                
+                    # Формируем строку с типом повторения
+                    repeat_info = ""
+                    if repeat_type == 'no_repeat':
+                        repeat_info = "без повторения"
+                    elif repeat_type == 'daily':
+                        repeat_info = "ежедневно"
+                    elif repeat_type == 'weekly':
+                        repeat_info = "еженедельно"
+                    elif repeat_type == 'monthly':
+                        repeat_info = "ежемесячно"
+                    elif repeat_type == 'custom' and custom_days:
+                        days_map = {
+                            '1': 'понедельник',
+                            '2': 'вторник',
+                            '3': 'среда',
+                            '4': 'четверг',
+                            '5': 'пятница',
+                            '6': 'суббота',
+                            '7': 'воскресенье'
+                        }
+                        # Сортируем дни по порядку (1-7) перед отображением
+                        sorted_days = sorted(custom_days.split(','), key=int)
+                        days_names = [days_map[d] for d in sorted_days]
+                        repeat_info = f"каждый {', '.join(days_names)}"
+                    
+                    reminds_list.append(f"{idx}. ID: {remind_id} | {remind_text} - {formatted_time}, {repeat_info}")
+
                 # Отправляем список пользователю
                 bot.send_message(
                     user_id,
-                    "📄 Ваши активные напоминания:\n\n" +
+                    "📄 Ваши активные напоминания (отсортированы по ID):\n\n" +
                     "\n".join(reminds_list) +
                     "\n\nДля удаления отправьте <b>ID</b> напоминания\n" +
                     "Или введите 0 для отмены",
@@ -337,6 +356,102 @@ def main():
                 )
                 db_actions.set_user_system_key(user_id, "index", 20)
 
+            elif call.data == "edit_reminder":
+                from datetime import datetime
+                try:
+                    reminds = db_actions.get_user_remind_by_userid(user_id)
+                    
+                    if not reminds:
+                        bot.send_message(user_id, "❌ У вас нет активных напоминаний")
+                        return
+                    
+                    # Сортируем напоминания по ID (первый элемент в кортеже)
+                    reminds_sorted = sorted(reminds, key=lambda x: x[0])
+                    
+                    reminds_list = []
+                    for idx, remind in enumerate(reminds_sorted, start=1):
+                        remind_id = remind[0]  # row_id
+                        remind_text = remind[1]  # текст напоминания
+                        remind_timestamp = remind[2]  # метка времени
+                        repeat_type = remind[3]  # тип повторения
+                        custom_days = remind[4]  # кастомные дни (если есть)
+                        
+                        # Преобразуем timestamp в читаемый формат
+                        remind_time = datetime.fromtimestamp(remind_timestamp)
+                        formatted_time = remind_time.strftime('%d.%m.%Y %H:%M')
+                        
+                        # Формируем строку с типом повторения
+                        repeat_info = ""
+                        if repeat_type == 'no_repeat':
+                            repeat_info = "без повторения"
+                        elif repeat_type == 'daily':
+                            repeat_info = "ежедневно"
+                        elif repeat_type == 'weekly':
+                            repeat_info = "еженедельно"
+                        elif repeat_type == 'monthly':
+                            repeat_info = "ежемесячно"
+                        elif repeat_type == 'custom' and custom_days:
+                            days_map = {
+                                '1': 'понедельник',
+                                '2': 'вторник',
+                                '3': 'среда',
+                                '4': 'четверг',
+                                '5': 'пятница',
+                                '6': 'суббота',
+                                '7': 'воскресенье'
+                            }
+                            # Сортируем дни по порядку (1-7) перед отображением
+                            sorted_days = sorted(custom_days.split(','), key=int)
+                            days_names = [days_map[d] for d in sorted_days]
+                            repeat_info = f"каждый {', '.join(days_names)}"
+                        
+                        reminds_list.append(f"{idx}. ID: {remind_id} | {remind_text} - {formatted_time}, {repeat_info}")
+                    
+                    # Отправляем список пользователю
+                    bot.send_message(
+                        user_id,
+                        "📄 Ваши активные напоминания (отсортированы по ID):\n\n" +
+                        "\n".join(reminds_list) +
+                        "\n\nДля редактирования отправьте <b>ID</b> напоминания\n",
+                        parse_mode="HTML"
+                    )
+                    db_actions.set_user_system_key(user_id, "index", 42)
+                except:
+                    bot.send_message(user_id, "❌ Ошибка!")
+            
+            elif call.data == 'edit_text_reminder':
+                bot.send_message(user_id, "Отправьте новый текст напоминания")
+                db_actions.set_user_system_key(user_id, "index", 43)
+
+            elif call.data == "edit_time_reminder":
+                bot.send_message(user_id, "Введите новое время напоминания")
+                db_actions.set_user_system_key(user_id, "index", 44)
+
+            elif call.data == "edit_repeat_reminder":
+                bot.send_message(user_id, "Выберите новую периодичность:", reply_markup=buttons.edit_repeat_reminder_buttons())
+
+            elif call.data == "edit_no_repeat":
+                remind_id = db_actions.get_user_system_key(user_id, "remind_id")
+                db_actions.update_reminder_repeat(user_id, remind_id, "no_repeat", None)
+                bot.send_message(user_id, "✅ Напоминание будет без повторения")
+
+            elif call.data == "edit_daily":
+                remind_id = db_actions.get_user_system_key(user_id, "remind_id")
+                db_actions.update_reminder_repeat(user_id, remind_id, "daily", None)
+                bot.send_message(user_id, "✅ Напоминание будет ежедневным")
+
+            elif call.data == "edit_weekly":
+                remind_id = db_actions.get_user_system_key(user_id, "remind_id")
+                db_actions.update_reminder_repeat(user_id, remind_id, "weekly", None)
+                bot.send_message(user_id, "✅ Напоминание будет еженедельным")
+
+            elif call.data == "edit_custom":
+                bot.send_message(
+                    user_id,
+                    "Введите дни недели через запятую (1-Пн, 2-Вт, ..., 7-Вс):",
+                    reply_markup=types.ForceReply()
+                )
+                db_actions.set_user_system_key(user_id, "index", 45)
 
             elif call.data in ['no_repeat', 'daily', 'weekly', 'monthly', 'custom']:
                 remind_text = db_actions.get_user_system_key(user_id, "remind")
@@ -640,7 +755,7 @@ def main():
                                 cause = 'Давление в норме'
                                 db_actions.add_pressure_user(user_id, user_input, cause)
                         else:
-                            bot.send_message(user_id, "❌ Ошибка!\n\nНет данных о пороге давления или таблетках!", reply_markup=buttons.end_question_two_buttons())
+                            bot.send_message(user_id, "❌ Ошибка!\n\nНет данных о пороге давления или таблетках!")
                     else:
                         bot.send_message(user_id, "❌ Ошибка! Введите давление в формате: 120/60")
                 except:
@@ -710,7 +825,6 @@ def main():
                         # Конвертируем время в UTC для хранения
                         timestamp = int(time_dt.astimezone(tz.utc).timestamp())
                         db_actions.set_user_system_key(user_id, "time_remind", timestamp)
-                        bot.send_message(user_id, "✅ Напоминание установлено!")
                         bot.send_message(user_id, "⏰ Выберите повтор напоминания", reply_markup=buttons.repeat_reminder_buttons())
                         db_actions.set_user_system_key(user_id, "index", None)
                 except ValueError:
@@ -789,7 +903,7 @@ def main():
                             'custom',
                             ','.join(days)
                         ):
-                            bot.send_message(user_id, "✅ Повторение напоминания установлено!")
+                            bot.send_message(user_id, "✅ Напоминания установлено!")
                         else:
                             bot.send_message(user_id, "❌ Ошибка при создании напоминания")
                     else:
@@ -833,10 +947,21 @@ def main():
                         bot.send_message(user_id, "<b>❌ У вас добавлено максимальное количество вопросов!</b>", parse_mode='HTML')
                         db_actions.set_user_system_key(user_id, "index", None)
                     else:
-                        db_actions.write_user_bad_condition(user_id, code, user_input)
-                        code += 1
-                        db_actions.set_user_system_key(user_id, "index", code)
-                        bot.send_message(user_id, f"Задайте вопрос №{code}", reply_markup=buttons.end_bad_condition_buttons())
+                        # Используем count+1 для нумерации вопросов, начиная с 1
+                        question_number = count + 1
+                        db_actions.write_user_bad_condition(user_id, question_number, user_input)
+                        
+                        # Проверяем, не достигли ли мы максимума вопросов
+                        new_count = len(db_actions.get_user_bad_condition(user_id)) if db_actions.get_user_bad_condition(user_id) else 0
+                        if new_count >= 10:
+                            bot.send_message(user_id, "✅ Вопрос добавлен! Достигнуто максимальное количество вопросов.")
+                            db_actions.set_user_system_key(user_id, "index", None)
+                        else:
+                            # Предлагаем добавить следующий вопрос с правильным номером
+                            next_question_number = new_count + 1
+                            bot.send_message(user_id, f"Задайте вопрос №{next_question_number}", 
+                                        reply_markup=buttons.end_bad_condition_buttons())
+
 
             elif code == 38:
                 try:
@@ -906,6 +1031,85 @@ def main():
                     else:
                         bot.send_message(user_id, "✅ Вы ответили на все вопросы! Спасибо!")
                         db_actions.set_user_system_key(user_id, "index", None)
+            
+            elif code == 42:
+                if not int(user_input):
+                    bot.send_message(user_id, "❌ Ошибка! Введите ID напоминания")
+                    return
+                else:
+                    db_actions.set_user_system_key(user_id, "remind_id", user_input)
+                    bot.send_message(user_id, "Выберите пункт!", reply_markup=buttons.edit_reminders_buttons())
+
+            elif code == 43:
+                if len(user_input) > 120:
+                    bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
+                    "Максимум: 120 символов", parse_mode='HTML')
+                    return
+                else:
+                    reminder_id = db_actions.get_user_system_key(user_id, "remind_id")
+                    db_actions.update_user_remind_text(user_id, reminder_id, user_input)
+                    bot.send_message(user_id, "✅ Текст напоминания обновлен!")
+                    db_actions.set_user_system_key(user_id, "index", None)
+
+
+            elif code == 44:
+                # time edit for reminder
+                try:
+                    # Получаем часовой пояс пользователя
+                    user_timezone = db_actions.get_user_timezone(user_id)
+                    if not user_timezone:
+                        user_timezone = 'UTC'
+                    
+                    import pytz
+                    from datetime import datetime, timezone as tz
+                    user_tz = pytz.timezone(user_timezone)
+                    
+                    # Парсим введенную дату в локальном времени пользователя
+                    time_dt = datetime.strptime(user_input, '%d.%m.%Y %H:%M')
+                    time_dt = user_tz.localize(time_dt)
+                    
+                    # Получаем текущее время в часовом поясе пользователя
+                    current_time = datetime.now(user_tz)
+                    
+                    if time_dt < current_time:
+                        bot.send_message(user_id, "❌ Ошибка!\n" \
+                        "Введенная дата в прошлом!\n\n" \
+                        "Введите дату еще раз, пример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
+                        return  # Не меняем index, чтобы пользователь мог повторить ввод
+                    
+                    # Конвертируем время в UTC для хранения
+                    timestamp = int(time_dt.astimezone(tz.utc).timestamp())
+                    remind_id = db_actions.get_user_system_key(user_id, "remind_id")
+                    
+                    db_actions.update_user_remind_time(user_id, remind_id, timestamp)
+                    bot.send_message(user_id, "✅ Время напоминания обновлено!")
+                    db_actions.set_user_system_key(user_id, "index", None)
+                    
+                except ValueError:
+                    bot.send_message(user_id, "❌ Неверный формат!\nПример: <b>25.12.2025 18:00</b>", parse_mode='HTML')
+
+
+            elif code == 45:
+                remind_id = db_actions.get_user_system_key(user_id, "remind_id")
+                try:
+                    # Убедимся, что дни разделены запятыми и содержат только цифры 1-7
+                    days = [d.strip() for d in user_input.split(',') if d.strip().isdigit() and 1 <= int(d.strip()) <= 7]
+                    if days:
+                        # Удаляем дубликаты и сортируем
+                        days = sorted(list(set(days)))
+                        custom_days_str = ','.join(days)
+                        
+                        if db_actions.update_reminder_repeat(user_id, remind_id, 'custom', custom_days_str):
+                            bot.send_message(user_id, "✅ Периодичность обновлена")
+                        else:
+                            bot.send_message(user_id, "❌ Ошибка при обновлении")
+                    else:
+                        bot.send_message(user_id, "❌ Введите числа от 1 до 7 через запятую")
+                except:
+                    bot.send_message(user_id, "❌ Ошибка формата")
+                db_actions.set_user_system_key(user_id, "index", None)
+
+
 
     def check_reminders():
         while True:
@@ -917,7 +1121,7 @@ def main():
                     try:
                         bot.send_message(
                             reminder['user_id'],
-                            f"🔔 Напоминание: {reminder['reminder']}"
+                            f"❗{reminder['reminder']}"
                         )
                     except Exception as e:
                         continue
