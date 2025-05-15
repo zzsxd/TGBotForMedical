@@ -201,7 +201,7 @@ class DbAct:
             WHERE row_id = ? AND user_id = ?
         ''', (new_answer, question_id, user_id))
 
-    def get_question_by_id_bad_condition(self, question_id):
+    def get_question_bad_condition(self, question_id):
         result = self.__db.db_read(
             'SELECT row_id, question FROM user_bad_condition '
             'WHERE row_id = ?',
