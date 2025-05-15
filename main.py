@@ -864,7 +864,7 @@ def main():
                 else:
                     db_actions.add_user_answer(user_id, question_id, user_input)
                     if current_idx + 1 < len(question_ids):
-                        next_question = db_actions.get_question_by_id(question_ids[current_idx + 1])
+                        next_question = db_actions.get_question_by_id(question_ids[current_idx + 1], user_id)
                         db_actions.set_user_system_key(user_id, "current_question_index", current_idx + 1)
                         bot.send_message(
                             user_id,
@@ -1018,7 +1018,7 @@ def main():
                 else:
                     db_actions.add_user_answer_bad_condition(user_id, question_id, user_input)
                     if current_idx + 1 < len(question_ids):
-                        next_question = db_actions.get_question_by_id_bad_condition(question_ids[current_idx + 1])
+                        next_question = db_actions.get_question_bad_condition(question_ids[current_idx + 1], user_id)
                         db_actions.set_user_system_key(user_id, "current_bad_condition_index", current_idx + 1)
                         bot.send_message(
                             user_id,
