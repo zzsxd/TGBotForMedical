@@ -39,17 +39,26 @@ class Bot_inline_btns:
     def reports_buttons(self):
         one = types.InlineKeyboardButton("Отчет по давлению 💊", callback_data="pressure_report")
         three = types.InlineKeyboardButton("Отчет по вопросам 📄", callback_data="questions_report")
+        two = types.InlineKeyboardButton("Отчет по хреновому состоянию ❤️", callback_data="bad_condition_report")
 
-        self.__markup.add(one, three)
+        self.__markup.add(one, three, two)
         return self.__markup
     
     def reminders_buttons(self):
-        two = types.InlineKeyboardButton("Все напоминания 📄", callback_data="all_reminders")
         four = types.InlineKeyboardButton("Добавить ➕", callback_data="add_reminder")
         five = types.InlineKeyboardButton("Удалить 🗑", callback_data="delete_reminder")
+        two = types.InlineKeyboardButton("Редактировать ✏️", callback_data="edit_reminder")
         six = types.InlineKeyboardButton("Часовой пояс 🕥", callback_data="timezone_settings")
 
-        self.__markup.add(two, four, five, six)
+        self.__markup.add(four, five, two, six)
+        return self.__markup
+    
+    def edit_reminders_buttons(self):
+        one = types.InlineKeyboardButton("Текст 📄", callback_data="edit_text_reminder")
+        two = types.InlineKeyboardButton("Время 🕤", callback_data="edit_time_reminder")
+        three = types.InlineKeyboardButton("Периодичность 🔁", callback_data="edit_repeat_reminder")
+
+        self.__markup.add(one, two, three)
         return self.__markup
     
     def timezone_buttons(self):
@@ -71,10 +80,19 @@ class Bot_inline_btns:
         one = types.InlineKeyboardButton("📅 Не повторять", callback_data="no_repeat")
         two = types.InlineKeyboardButton("📅 Ежедневно", callback_data="daily")
         three = types.InlineKeyboardButton("📅 Еженедельно", callback_data="weekly")
+        four = types.InlineKeyboardButton("📅 Свои дни", callback_data="custom")
 
-        self.__markup.add(one, two, three)
+        self.__markup.add(one, two, three, four)
         return self.__markup
-
+    
+    def edit_repeat_reminder_buttons(self):
+        one = types.InlineKeyboardButton("📅 Не повторять", callback_data="edit_no_repeat")
+        two = types.InlineKeyboardButton("📅 Ежедневно", callback_data="edit_daily")
+        three = types.InlineKeyboardButton("📅 Еженедельно", callback_data="edit_weekly")
+        four = types.InlineKeyboardButton("📅 Свои дни", callback_data="edit_custom")
+        
+        self.__markup.add(one, two, three, four)
+        return self.__markup
 
     def settings_buttons(self):
         one = types.InlineKeyboardButton("❤️ Хреновое состояние", callback_data="bad_condition_settings")
@@ -114,11 +132,6 @@ class Bot_inline_btns:
         self.__markup.add(one)
         return self.__markup
     
-    def end_question_two_buttons(self):
-        one = types.InlineKeyboardButton("🔹 Настройки давления", callback_data='settings_pressure')
-
-        self.__markup.add(one)
-        return self.__markup
 
     def pressure_settings(self):
         one = types.InlineKeyboardButton("⚙️ Настроить давление", callback_data="set_pressure")

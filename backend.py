@@ -13,6 +13,7 @@ class DbAct:
         self.__fields_pressure = ['Давление', 'Причина', 'Запись']
         self.__fields_weight = ['Вес', 'Запись']
         self.__fields_questions = ['Вопрос', 'Ответ', 'Последняя запись']
+        self.__fields_bad_condition = ['Вопрос', 'Ответ', 'Последняя запись']
         self.__fields_user = ['Имя', 'Фамилия', 'Никнейм']
         self.__dump_path_xlsx = path_xlsx
 
@@ -28,6 +29,7 @@ class DbAct:
                 (user_id, first_name, last_name, nick_name, json.dumps({"index": None,
                                                                         "pressure": None,
                                                                         "now_pressure": None,
+                                                                        "remind_id": None,
                                                                         "remind": None,
                                                                         "time_remind": None,
                                                                         "pending_questions": None,
@@ -278,6 +280,99 @@ class DbAct:
         except Exception as e:
             print(f"Ошибка при добавлении напоминания: {e}")
             return None
+        
+    def update_user_remind_text(self, user_id, remind_id, reminder_text):
+        if not self.user_is_existed(user_id):
+            return None
+        self.__db.db_write('UPDATE user_reminders SET reminder = ? WHERE user_id = ? AND row_id = ?', (reminder_text, user_id, remind_id))
+    
+    
+    def update_user_remind_time(self, user_id, remind_id, timestamp):
+        if not self.user_is_existed(user_id):
+            return None
+        
+        try:
+            # Обновляем время напоминания
+            return self.__db.db_write(
+                'UPDATE user_reminders SET base_time = ?, next_time = ? '
+                'WHERE user_id = ? AND row_id = ?',
+                (timestamp, timestamp, user_id, remind_id)
+            )
+        except Exception as e:
+            print(f"Ошибка при обновлении времени напоминания: {e}")
+            return None
+
+    def update_reminder_repeat(self, user_id: int, remind_id: int, repeat_type: str, custom_days: str = None):
+        if not self.user_is_existed(user_id):
+            return None
+        
+        try:
+            # Получаем текущее напоминание
+            reminder = self.__db.db_read(
+                'SELECT base_time, timezone FROM user_reminders WHERE row_id = ? AND user_id = ?',
+                (remind_id, user_id)
+            )
+            
+            if not reminder:
+                return False
+            
+            base_time, timezone = reminder[0]
+            if not timezone:
+                timezone = 'UTC'
+                
+            import pytz
+            from datetime import datetime, timezone as tz, timedelta
+            user_tz = pytz.timezone(timezone)
+            
+            # Конвертируем базовое время в локальное время пользователя
+            base_dt = datetime.fromtimestamp(base_time, tz=tz.utc).astimezone(user_tz)
+            
+            # Вычисляем новое next_time в зависимости от типа повторения
+            if repeat_type == 'no_repeat':
+                next_time = base_time  # Оставляем исходное время
+            elif repeat_type == 'daily':
+                next_dt = base_dt + timedelta(days=1)
+                next_time = int(next_dt.astimezone(tz.utc).timestamp())
+            elif repeat_type == 'weekly':
+                next_dt = base_dt + timedelta(weeks=1)
+                next_time = int(next_dt.astimezone(tz.utc).timestamp())
+            elif repeat_type == 'monthly':
+                next_dt = base_dt + timedelta(days=30)
+                next_time = int(next_dt.astimezone(tz.utc).timestamp())
+            elif repeat_type == 'custom' and custom_days:
+                # Для пользовательских дней находим следующий день из списка
+                current_time = datetime.now(user_tz)
+                current_day = current_time.weekday() + 1  # 1-7 (пн-вс)
+                custom_days_list = [int(d) for d in custom_days.split(',')]
+                
+                # Находим следующий день в списке
+                next_day = None
+                for day in sorted(custom_days_list):
+                    if day > current_day:
+                        next_day = day
+                        break
+                
+                if next_day is None:
+                    # Берем первый день из списка на следующей неделе
+                    days_to_add = (7 - current_day) + custom_days_list[0]
+                else:
+                    days_to_add = next_day - current_day
+                
+                next_dt = base_dt + timedelta(days=days_to_add)
+                next_time = int(next_dt.astimezone(tz.utc).timestamp())
+            else:
+                return False
+            
+            # Обновляем запись в базе данных
+            return self.__db.db_write(
+                'UPDATE user_reminders SET repeat_type = ?, custom_days = ?, next_time = ? '
+                'WHERE row_id = ? AND user_id = ?',
+                (repeat_type, custom_days, next_time, remind_id, user_id)
+            )
+            
+        except Exception as e:
+            print(f"Ошибка при обновлении периодичности напоминания: {e}")
+            return False
 
     def get_user_remind(self, current_time):
         if current_time is None:
@@ -438,6 +533,19 @@ class DbAct:
                 for question_answer in question_answer_data:
                     for info in range(len(list(question_answer))):
                         data[self.__fields_questions[info]].append(question_answer[info])
+                df = pd.DataFrame(data)
+                df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='Вопросы и ответы', index=False)
+        except Exception as e:
+            return None
+        
+    def get_bad_condition_report(self, user_id: int):
+        try:
+            data = {'Вопрос': [], 'Ответ': [], 'Последняя запись': []}
+            question_answer_data = self.__db.db_read('SELECT question, answer, created_at FROM user_bad_condition WHERE user_id = ?', (user_id,))
+            if len(question_answer_data) > 0:
+                for question_answer in question_answer_data:
+                    for info in range(len(list(question_answer))):
+                        data[self.__fields_bad_condition[info]].append(question_answer[info])
                 df = pd.DataFrame(data)
                 df.to_excel(self.__config.get_config()['xlsx_path'], sheet_name='Вопросы и ответы', index=False)
         except Exception as e:
