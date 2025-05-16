@@ -37,6 +37,7 @@ class DbAct:
                                                                         "pending_bad_condition": None,
                                                                         "current_bad_condition_index": None,
                                                                         "question_id": None}), is_admin))
+            self.__db.db_write('INSERT INTO user_settings (user_id) VALUES (?)', (user_id,))
             
 
     ##### СТАНДАРТНЫЕ КОМАНДЫ #####
