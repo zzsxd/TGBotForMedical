@@ -37,6 +37,7 @@ class DbAct:
                                                                         "pending_bad_condition": None,
                                                                         "current_bad_condition_index": None,
                                                                         "question_id": None}), is_admin))
+            self.__db.db_write('INSERT INTO user_settings (user_id) VALUES (?)', (user_id,))
             
 
     ##### СТАНДАРТНЫЕ КОМАНДЫ #####
@@ -200,6 +201,7 @@ class DbAct:
             SET answer = ?, created_at = CURRENT_TIMESTAMP 
             WHERE row_id = ? AND user_id = ?
         ''', (new_answer, question_id, user_id))
+
 
     def get_question_bad_condition(self, question_id, user_id):
         result = self.__db.db_read(
