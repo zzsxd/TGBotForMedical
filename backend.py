@@ -135,11 +135,11 @@ class DbAct:
             WHERE row_id = ? AND user_id = ?
         ''', (new_answer, question_id, user_id))
 
-    def get_question_by_id(self, question_id):
+    def get_question_by_id(self, question_id, user_id):
         result = self.__db.db_read(
             'SELECT row_id, question FROM user_questions '
-            'WHERE row_id = ?',
-            (question_id,)
+            'WHERE row_id = ? AND user_id = ? AND question_status = 1',
+            (question_id, user_id)
         )
         return result[0] if result else None
     
@@ -201,11 +201,12 @@ class DbAct:
             WHERE row_id = ? AND user_id = ?
         ''', (new_answer, question_id, user_id))
 
-    def get_question_bad_condition(self, question_id):
+
+    def get_question_bad_condition(self, question_id, user_id):
         result = self.__db.db_read(
             'SELECT row_id, question FROM user_bad_condition '
-            'WHERE row_id = ?',
-            (question_id,)
+            'WHERE row_id = ? AND user_id = ? AND question_status = 1',
+            (question_id, user_id)
         )
         return result[0] if result else None
     
