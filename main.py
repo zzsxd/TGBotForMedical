@@ -856,33 +856,51 @@ def main():
             elif code == 21:
                 question_ids = db_actions.get_user_system_key(user_id, "pending_questions")
                 current_idx = db_actions.get_user_system_key(user_id, "current_question_index")
-                question_id = question_ids[current_idx]
+                
+                # Проверка наличия вопросов
+                if not question_ids or current_idx is None:
+                    bot.send_message(user_id, "❌ Ошибка: вопросы не найдены")
+                    db_actions.set_user_system_key(user_id, "index", None)
+                    return
+                
+                # Получаем текущий вопрос
+                current_question_id = question_ids[current_idx]
+                
+                # Проверка длины ответа
                 if len(user_input) > 120:
                     bot.send_message(user_id, "<b>❌ Превышение лимита символов!</b>\n\n"
                     "Максимум: 120 символов", parse_mode='HTML')
                     return
-                else:
-                    db_actions.add_user_answer(user_id, question_id, user_input)
-                    if current_idx + 1 < len(question_ids):
-                        next_question = db_actions.get_question_by_id(question_ids[current_idx + 1], user_id)
-
-                        if not next_question:
-                            bot.send_message(user_id, "✅ Вы ответили на все вопросы! Спасибо!")
-                            db_actions.set_user_system_key(user_id, "index", None)
-                            return
-                        
-                        db_actions.set_user_system_key(user_id, "current_question_index", current_idx + 1)
-                        bot.send_message(
-                            user_id,
-                            f"✅ Ответ сохранен!\n\n"
-                            f"<b>Следующий вопрос:</b>\n\n"
-                            f"{current_idx + 2}/{len(question_ids)}. {next_question[1]}\n\n"
-                            "Введите ваш ответ:",
-                            parse_mode='HTML'
-                        )
-                    else:
-                        bot.send_message(user_id, "✅ Вы ответили на все вопросы! Спасибо!")
+                
+                # Сохраняем ответ
+                db_actions.add_user_answer(user_id, current_question_id, user_input)
+                
+                # Проверяем, есть ли ещё вопросы
+                if current_idx + 1 < len(question_ids):
+                    # Получаем следующий вопрос
+                    next_question_data = db_actions.get_question_by_id(question_ids[current_idx + 1])
+                    
+                    if not next_question_data or len(next_question_data) < 2:
+                        bot.send_message(user_id, "❌ Ошибка: не удалось загрузить следующий вопрос")
                         db_actions.set_user_system_key(user_id, "index", None)
+                        return
+                        
+                    next_question_text = next_question_data[1]
+                    
+                    # Обновляем индекс и просим следующий ответ
+                    db_actions.set_user_system_key(user_id, "current_question_index", current_idx + 1)
+                    bot.send_message(
+                        user_id,
+                        f"✅ Ответ сохранен!\n\n"
+                        f"<b>Следующий вопрос:</b>\n\n"
+                        f"{current_idx + 2}/{len(question_ids)}. {next_question_text}\n\n"
+                        "Введите ваш ответ:",
+                        parse_mode='HTML'
+                    )
+                else:
+                    # Все вопросы пройдены
+                    bot.send_message(user_id, "✅ Вы ответили на все вопросы! Спасибо!")
+                    db_actions.set_user_system_key(user_id, "index", None)
 
             elif code == 22:
                 if len(user_input) > 120:
